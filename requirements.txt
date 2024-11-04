@@ -1,2 +1,7 @@
-flask
 py2neo
+neo4j
+flask_jwt_extended
+flask_limiter
+flask
+python-dotenv
+bcrypt
