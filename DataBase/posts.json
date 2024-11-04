@@ -1,0 +1,36 @@
+[{
+    "id_post":1,
+    "id_thread":1,
+    "id_author":1,
+    "date":"2021-10-25T10:00:00+00:00",
+    "title":"If I hadn't been born ?",
+    "content":"Imagine Nejat Arinik was never born, the world would be the same, there would just be a few students who would be happier...",
+    "media":[
+        "https://img.freepik.com/photos-premium/escalier-vers-paradis-dans-portes-gloire-du-paradis-genere-par-ia_201606-8401.jpg"
+    ],
+    "keys":[
+        "paradise",
+        "heaven",
+        "trash"
+    ],
+    "likes":[
+        2
+    ],
+    "comments":[
+        2
+    ]
+},
+{
+    "id_post":2,
+    "id_thread":1,
+    "id_author":2,
+    "date":"2021-10-25T10:24:15+00:00",
+    "content":"Don't worry! well, now I'm not alone.",
+    "keys":[
+        "trash"
+    ],
+    "likes":[
+        1
+    ],
+    "comments":[]
+}]

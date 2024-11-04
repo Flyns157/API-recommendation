@@ -1,0 +1,39 @@
+[{
+    "id_user":1,
+    "role":"admin",
+    "username":"HarryNique",
+    "password":"Im_1he-best",
+    "mail":"nejat.arinik@gmail.com",
+    "name":"nejat",
+    "surname":"arinik",
+    "birthdate":"2001-09-11",
+    "pp":"https://cdn-s-www.ledauphine.com/images/26B02385-FCED-407C-BE94-2D300FAAB9A8/NW_raw/nejat-arinik-partage-la-recette-du-borek-de-sa-grand-mere-1535387313.jpg",
+    "follow":[2],
+    "blocked":[],
+    "interest":[
+        "football",
+        "basketball",
+        "tennis"
+    ],
+    "description":"the first admin, god of what if...",
+    "status":"In vacation ;)"
+},
+{
+    "id_users":2,
+    "role":"admin",
+    "username":"Memorable",
+    "password":"Im_1he-best",
+    "mail":"wissem.inoubli@gmail.com",
+    "name":"wissem",
+    "surname":"inoubli",
+    "birthdate":"2001-09-11",
+    "pp":"https://www.cril.univ-artois.fr/~inoubli/assets/img/photo.jpg",
+    "follow":[],
+    "blocked":[1],
+    "interest":[
+        "football",
+        "politician"
+    ],
+    "description":"Mmmmmmmmmmmmmm...mmmmongoDB !",
+    "status":"In vacation ;)"
+}]

@@ -1,0 +1,13 @@
+[{
+    "id_thread":1,
+    "name":"Free NSFW",
+    "range":"public",
+    "members":[
+        1,
+        2
+    ],
+    "id_owner":1,
+    "admins":[
+        1
+    ]
+}]
