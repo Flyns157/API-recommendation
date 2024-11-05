@@ -1,0 +1,55 @@
+@startuml
+
+entity "users" as Users {
+    + id_user : int
+    + role : string
+    + username : string
+    + password : string
+    + mail : string
+    + name : string
+    + surname : string
+    + birthdate : date
+    + pp : string
+    + follow : list<int>
+    + blocked : list<int>
+    + interest : list<string>
+    + description : string
+    + status : string
+}
+
+entity "roles" as Roles {
+    + name : string
+    + right : list<string>
+    + extend : list<string>
+}
+
+entity "threads" as Threads {
+    + id_thread : int
+    + name : string
+    + range : string
+    + members : list<int>
+    + id_owner : int
+    + admins : list<int>
+}
+
+entity "posts" as Posts {
+    + id_post : int
+    + id_thread : int
+    + id_author : int
+    + date : datetime
+    + title : string
+    + content : string
+    + media : list<string>
+    + keys : list<string>
+    + likes : list<int>
+    + comments : list<int>
+}
+
+Threads o--o Users : "members"
+Users --o Threads : "id_owner"
+Users --o Posts : "id_author"
+Threads --o Posts : "id_thread"
+Roles --o Users : "role"
+Posts --o Posts : "Comments"
+
+@enduml
