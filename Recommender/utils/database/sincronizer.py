@@ -1,7 +1,9 @@
+from pymongo.database import Database as MongoDatabase
+from neo4j import Driver as Neo4jDriver
 
 class Sincronizer:
-    def __init__(self, mogo_db, neo4j_db)->None:
-        self.mogo_db = mogo_db
+    def __init__(self, mongo_db:MongoDatabase, neo4j_db:Neo4jDriver)->None:
+        self.mongo_db = mongo_db
         self.neo4j_driver = neo4j_db
     
     def sync_all(self)->None:
