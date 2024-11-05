@@ -10,7 +10,7 @@ setup(
     name="Recommender",
     version="0.1.0",
     author="Cuisset Mattéo, Delcambre Jean-Alexis",
-    author_email="matteo.cuisset@gmail.com",
+    author_email="matteo.cuisset@gmail.com, ja.delcambre@gmail.com ",
     description="A Flask-based recommendation API service",
     long_description=long_description,
     long_description_content_type="text/markdown",
