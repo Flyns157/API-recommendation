@@ -13,3 +13,4 @@ MarkupSafe
 Werkzeug
 gunicorn
 setuptools
+pymongo[srv]

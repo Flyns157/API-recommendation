@@ -1,28 +1,29 @@
-# Utiliser une image de base officielle de Python
+# Use an official Python runtime as the base image
 FROM python:3.12.7-slim
 
-# Définir le répertoire de travail
+# Set the working directory in the container
 WORKDIR /app
 
-# Copier les fichiers de l'application dans le conteneur
+# Copy the current directory contents into the container at /app
 COPY . /app
 
-# Mettre à jour pip
+# Update pip
 RUN pip install --upgrade pip
 
-# Installer les dépendances
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Configurer la variable d'environnement pour Flask
+# Set environment variables
 ENV FLASK_APP=Recommender/__main__.py
+ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_ENV=production
 
 # Générer une clé secrète pour Flask
 RUN python -c 'import secrets; print(secrets.token_hex())' > secret_key.txt
 RUN echo "SECRET_KEY=$(cat secret_key.txt)" > .env
 
-# Exposer le port sur lequel l'application va s'exécuter
+# Make port 8000 available to the world outside this container
 EXPOSE 8080
 
-# Utiliser un serveur WSGI pour exécuter l'application Flask
+# Use a WSGI server to launch the Flask application
 CMD ["waitress-serve", "--call", "Recommender.api:create_app"]
