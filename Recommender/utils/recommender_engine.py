@@ -2,23 +2,93 @@ from .database import Database
 import random
 
 class recommender_engine:
-    def __init__(self, db:Database) -> None:
+    """
+    Base class for a recommendation engine in a social network, providing a structure for generating
+    recommendations of users, posts, and threads based on various criteria. This class must be extended
+    with implementations of the recommendation methods.
+
+    Attributes:
+        db (Database): Database instance used for Neo4j interactions.
+    """
+    
+    def __init__(self, db: Database) -> None:
+        """
+        Initializes the recommender engine with a database connection.
+
+        Parameters:
+            db (Database): The Database instance for accessing Neo4j data.
+        """
         self.db = db
     
-    def recommend_users(user_id:int)->list[int]:
+    def recommend_users(self, user_id: int) -> list[int]:
+        """
+        Recommends users for a specified user to follow. To be implemented in a subclass.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of recommended user IDs.
+        
+        Raises:
+            NotImplementedError: If the method is not implemented in a subclass.
+        """
         raise NotImplementedError('Must be implemented in subclass / child class.')
 
-    def recommend_posts(user_id:int)->list[int]:
+    def recommend_posts(self, user_id: int) -> list[int]:
+        """
+        Recommends posts for a specified user based on interests and content engagement. To be implemented in a subclass.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of recommended post IDs.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in a subclass.
+        """
         raise NotImplementedError('Must be implemented in subclass / child class.')
     
-    def recommend_threads(user_id:int)->list[int]:
+    def recommend_threads(self, user_id: int) -> list[int]:
+        """
+        Recommends threads for a specified user to join based on shared memberships. To be implemented in a subclass.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of recommended thread IDs.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in a subclass.
+        """
         raise NotImplementedError('Must be implemented in subclass / child class.')
 
 # Mattéo
 # =====================================================================================================================
 class MC_engine(recommender_engine):
-    def recommend_users(self, user_id:int)->list[int]:
-        # Recommends users to follow based on shared interests or mutual connections
+    """
+    Monte Carlo-based recommendation engine for suggesting users to follow, posts to view, and threads to join.
+    Generates recommendations based on shared interests, mutual connections, and engagement patterns.
+
+    Methods:
+        recommend_users: Recommends users to follow based on mutual connections.
+        recommend_posts: Recommends posts based on similar engagement patterns.
+        recommend_threads: Recommends threads to join based on shared memberships.
+    """
+    
+    def recommend_users(self, user_id: int) -> list[int]:
+        """
+        Recommends users to follow for a given user, based on mutual followers. Excludes users already followed
+        by the specified user.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of user IDs recommended for the specified user.
+        """
         with self.db.neo4j_driver.session() as session:
             result = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:FOLLOWS]->(f:User)-[:FOLLOWS]->(rec:User)
@@ -28,8 +98,17 @@ class MC_engine(recommender_engine):
             """, user_id=user_id)
             return [record['recommended_user'] for record in result]
 
-    def recommend_posts(self, user_id:int)->list[int]:
-        # Recommends posts based on interests and liked content
+    def recommend_posts(self, user_id: int) -> list[int]:
+        """
+        Recommends posts for a given user based on other users' likes on posts that the specified user has also liked.
+        Excludes posts already liked by the user.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of post IDs recommended for the specified user.
+        """
         with self.db.neo4j_driver.session() as session:
             result = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:LIKES]->(:Post)-[:LIKES]-(p:Post)
@@ -39,8 +118,17 @@ class MC_engine(recommender_engine):
             """, user_id=user_id)
             return [record['recommended_post'] for record in result]
 
-    def recommend_threads(self, user_id:int)->list[int]:
-        # Recommends threads based on user membership
+    def recommend_threads(self, user_id: int) -> list[int]:
+        """
+        Recommends threads to join for a given user based on shared membership with other users in different threads.
+        Excludes threads the user is already a member of.
+
+        Parameters:
+            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+
+        Returns:
+            list[int]: List of thread IDs recommended for the specified user.
+        """
         with self.db.neo4j_driver.session() as session:
             result = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(:Thread)-[:MEMBER_OF]-(t:Thread)
@@ -73,16 +161,27 @@ class JA_engine(recommender_engine):
                 hashtag_set.update(record["hashtags"])
             return hashtag_set
 
-    def recommend_users(self, id_user:int)->list[int]:
+    def recommend_users(self, id_user:int, follow_weight:float=0.4, intrest_weight:float=0.6)->list[int]:
         """
         Generate profile recommendations for a specific user based on mutual follows and interests.
 
         Args:
             id_user (int): The ID of the user.
+            follow_weight (float): The weight given to the follow score in the recommendation algorithm. Default is 0.4.
+            intrest_weight (float): The weight given to the interest score in the recommendation algorithm. Default is 0.6.
 
         Returns:
-            list: A sorted list of recommended user IDs.
+            list[int]: A sorted list of recommended user IDs.
+
+        Raises:
+            ValueError: If the sum of follow_weight and intrest_weight is not equal to 1.0.
+
+        Example:
+            >>> recommender.recommend_users(123, follow_weight=0.5, intrest_weight=0.5)
+            [456, 789, 1011]
         """
+        if follow_weight + intrest_weight != 1.0:
+            raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(
                 "MATCH (u:users) WHERE u.id_user = $id_user RETURN u",
@@ -111,7 +210,7 @@ class JA_engine(recommender_engine):
                 u_interests = set(u["u"]["interest"])
                 interests_score = len(user_interests & u_interests) / len(user_interests | u_interests) if user_interests and u_interests else 0
 
-                rec_score = ((follows_score*0.4) + (interests_score*0.6)) / 2
+                rec_score = ((follows_score*follow_weight) + (interests_score*intrest_weight)) / 2
                 scores[u["u"]["id_user"]] = rec_score
 
             return sorted(scores, key=scores.get, reverse=True)
