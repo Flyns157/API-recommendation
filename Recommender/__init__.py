@@ -6,7 +6,7 @@ from flask import Flask, jsonify
 from .config import Config
 import logging
 
-db = Database(Config().NO_AUTH)
+db = Database()
 
 class RecommendationAPI(Flask):
     
