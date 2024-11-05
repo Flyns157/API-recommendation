@@ -19,7 +19,7 @@
     "status":"In vacation ;)"
 },
 {
-    "id_users":2,
+    "id_user":2,
     "role":"admin",
     "username":"Memorable",
     "password":"Im_1he-best",
@@ -28,9 +28,9 @@
     "surname":"inoubli",
     "birthdate":"2001-09-11",
     "pp":"https://www.cril.univ-artois.fr/~inoubli/assets/img/photo.jpg",
-    "follow":[],
+    "followed":[],
     "blocked":[1],
-    "interest":[
+    "interests":[
         "football",
         "politician"
     ],

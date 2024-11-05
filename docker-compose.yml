@@ -9,8 +9,6 @@ services:
       - "7687:7687"
     environment:
       NEO4J_AUTH: none
-    volumes:
-      - ${PWD}/data:/data/db
 
   mongodb:
     image: mongo:latest
@@ -18,7 +16,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ${PWD}/data:/data/db
+      - mongo-data:/data/db
 
 volumes:
   mongo-data:
