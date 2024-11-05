@@ -1,49 +1,57 @@
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from flask import Blueprint, jsonify, request, send_file
+from flask_jwt_extended import jwt_required
+from flask import Blueprint, jsonify, request
 from .config import Config
-from PIL import Image
 import logging
-import io
+
+from .utils.recommender_engine import JA_engine
+from . import db
 
 logger = logging.getLogger(__name__)
 
-example_bp = Blueprint(name="gen_api", import_name=__name__, url_prefix="/api")
+recommendation_bp = Blueprint(name="recommendation_api", import_name=__name__, url_prefix="/api/recommender")
+recommender = JA_engine(db)
 
-@example_bp.route('/protected', methods=['GET'])
+@recommendation_bp.route('users/<int:id_user>', methods=['GET'])
 @jwt_required(not Config.NO_AUTH)
-def protected():
-    # Récupérer l'identité de l'utilisateur à partir du token
-    current_user = get_jwt_identity()
-    return jsonify(logged_in_as=current_user), 200
+def recommend_users(id_user):
+    """
+    Endpoint pour recommander des profils à un utilisateur en fonction des abonnements mutuels et des intérêts.
 
-# Exemple de fonction de traitement d'image
-def process_image(image):
-    '''
-    Convertir l'image en noir et blanc
-    '''
-    return image.convert('L')
+    Args:
+        id_user (int): L'identifiant de l'utilisateur.
 
-# Route API pour envoyer l'image et recevoir l'image modifiée (en noir et blanc ici)
-@example_bp.route('/process-image', methods=['POST'])
-def process_image_route():
-    if 'image' not in request.files:
-        return "No image file provided", 400
+    Query Params:
+        follow_weight (float): Poids pour l'abonnement mutuel dans le calcul de recommandation (par défaut 0.4).
+        intrest_weight (float): Poids pour les intérêts partagés dans le calcul de recommandation (par défaut 0.6).
 
-    file = request.files['image']
-    
+    Returns:
+        JSON: Liste triée des IDs des utilisateurs recommandés.
+    """
     try:
-        image = Image.open(file.stream)
+        follow_weight = float(request.args.get('follow_weight', 0.4))
+        intrest_weight = float(request.args.get('intrest_weight', 0.6))
         
-        processed_image = process_image(image)
-        
-        # mise en cache de l'image (buffer)
-        img_io = io.BytesIO()
-        processed_image.save(img_io, format='PNG')
-        img_io.seek(0)
-
-        return send_file(img_io, mimetype='image/png')
-
+        recommended_users = recommender.recommend_users(id_user, follow_weight, intrest_weight)
+        return jsonify(recommended_users), 200
+    except ValueError as ve:
+        return jsonify({'error': str(ve)}), 400
     except Exception as e:
-        return f"Error processing image: {str(e)}", 500
+        return jsonify({'error': str(e)}), 500
 
-#  ================================================================================================================================================
+@recommendation_bp.route('/api/recommend/posts/<int:id_user>', methods=['GET'])
+@jwt_required(not Config.NO_AUTH)
+def recommend_posts(id_user):
+    """
+    Endpoint pour recommander des posts à un utilisateur en fonction des hashtags et des intérêts.
+
+    Args:
+        id_user (int): L'identifiant de l'utilisateur.
+
+    Returns:
+        JSON: Liste triée des IDs des posts recommandés.
+    """
+    try:
+        recommended_posts = recommender.recommend_posts(id_user)
+        return jsonify(recommended_posts), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -9,10 +9,12 @@ class Database(AuthDatabase):
     def __init__(self, mongo_uri:str=None, mongo_db:str=None, neo4j_uri:str=None, neo4j_user:str=None, neo4j_password:str=None)->None:
         # Initialize connections to MongoDB and Neo4j
         super()
-        self.mongo_client = MongoClient(mongo_uri)
-        self.mongo_db = self.mongo_client[mongo_db]
-        self.neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
-        self.sync = Sincronizer(self.mongo_client, self.neo4j_driver)
+        if mongo_uri and mongo_db:
+            self.mongo_client = MongoClient(mongo_uri)
+            self.mongo_db = self.mongo_client[mongo_db]
+        if neo4j_uri:
+            self.neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+            self.sync = Sincronizer(self.mongo_client, self.neo4j_driver)
     
     def init_app(self, app:Flask)->None:
         self.app = app

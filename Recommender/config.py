@@ -31,6 +31,7 @@ class Config:
     NEO4J_URI = os.getenv('NEO4J_URI') or 'bolt://localhost:7687'
     NEO4J_USER = os.getenv('NEO4J_USER') or 'neo4j'
     NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD') or 'neo4j'
-    NO_AUTH = bool(os.getenv('NO_AUTH'))
+    NEO4J_AUTH = os.getenv('NEO4J_AUTH')
     MONGO_URI = os.getenv('MONGO_URI') or 'mongodb://localhost:27017/'
     MONGO_DB = os.getenv('MONGO_DB') or 'watif'
+    NO_AUTH = bool(os.getenv('NO_AUTH'))

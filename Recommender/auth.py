@@ -2,7 +2,6 @@
 Add authentication routes to the application.
 """
 from flask_jwt_extended import create_access_token
-from flask_limiter import Limiter
 from flask import Blueprint, jsonify, request
 from .utils import Database
 from .config import Config
@@ -10,11 +9,10 @@ from . import db
 
 config = Config()
 
-bp = Blueprint("api", __name__, url_prefix="/api")
+bp = Blueprint("api", __name__, url_prefix="/api/auth")
 
 if config.INDEPENDENT_REGISTER:
     @bp.route('/register', methods=['POST'])
-    @bp.limiter.limit("5 per minute")
     # @bp.limiter.limit("5 per minute")
     def register():
         username = request.json.get('username', None)
@@ -27,7 +25,7 @@ if config.INDEPENDENT_REGISTER:
         return jsonify({"msg": f"Utilisateur {username} créé avec succès"}), 201
 
 @bp.route('/login', methods=['POST'])
-@bp.limiter.limit("5 per minute")
+# @bp.limiter.limit("5 per minute")
 def login():
     username = request.json.get('username', None)
     password = request.json.get('password', None)

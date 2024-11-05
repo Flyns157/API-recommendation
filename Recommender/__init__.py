@@ -33,8 +33,8 @@ class RecommendationAPI(Flask):
         from .auth import bp as auth_bp
         self.register_blueprint(auth_bp)
         
-        from .api import example_bp
-        self.register_blueprint(example_bp)
+        from .api import recommendation_bp
+        self.register_blueprint(recommendation_bp)
         
         @self.route('/health', methods=['GET'])
         def health_check():
