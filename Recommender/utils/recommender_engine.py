@@ -111,7 +111,7 @@ class JA_engine(recommender_engine):
                 u_interests = set(u["u"]["interest"])
                 interests_score = len(user_interests & u_interests) / len(user_interests | u_interests) if user_interests and u_interests else 0
 
-                rec_score = follows_score + interests_score
+                rec_score = ((follows_score*0.4) + (interests_score*0.6)) / 2
                 scores[u["u"]["id_user"]] = rec_score
 
             return sorted(scores, key=scores.get, reverse=True)
