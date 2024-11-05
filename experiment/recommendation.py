@@ -1,134 +1,120 @@
-from py2neo import Graph, RelationshipMatcher, Node, Relationship
+from neo4j import GraphDatabase
 import random
 
-graphe = Graph(host="localhost")
+# Initialize the Neo4j driver
+uri = "bolt://localhost:7687"  # Adjust the URI as needed
+driver = GraphDatabase.driver(uri)  # no auth here else add : auth=("neo4j", "password")
 
-"""
-    Retrieves hashtags associated with a specific user's posts.
+def get_hastags(id_user:int)->set:
+    """
+    Retrieve hashtags used by a specific user.
 
-    @parameters:
-    id_user : int
-        The unique identifier of the user whose hashtags we want to retrieve.
+    Args:
+        id_user (int): The ID of the user.
 
-    @return:
-    set
-        A set containing all hashtags (str) associated with the specified user's posts.
+    Returns:
+        set: A set of hashtags used by the user.
+    """
+    with driver.session() as session:
+        hashtags = session.run(
+            "MATCH (p:posts) WHERE p.id_author = $id_user RETURN p.keys AS hashtags",
+            id_user=str(id_user)
+        )
+        hashtag_set = set()
+        for record in hashtags:
+            hashtag_set.update(record["hashtags"])
+        return hashtag_set
 
-    @example:
-    >>> get_hastags(12345)
-    {'python', 'machineLearning', 'dataScience'}
-"""
+def profile_recommendation(id_user:int)->list[int]:
+    """
+    Generate profile recommendations for a specific user based on mutual follows and interests.
 
+    Args:
+        id_user (int): The ID of the user.
 
-def get_hastags(id_user):
-    matcher = graphe.nodes
-    id_user = str(id_user)
-    hashtags_nodes = matcher.match("posts").where("_.id_author = " + id_user)
+    Returns:
+        list: A sorted list of recommended user IDs.
+    """
+    with driver.session() as session:
+        user = session.run(
+            "MATCH (u:users) WHERE u.id_user = $id_user RETURN u",
+            id_user=str(id_user)
+        ).single()
 
-    hashtags = set()
-    for h in hashtags_nodes:
-        for hashtag in h["keys"]:
-            hashtags.add(hashtag)
+        users = session.run(
+            "MATCH (u:users) WHERE u.id_user <> $id_user RETURN u"
+        )
 
-    return hashtags
+        scores = {}
+        user_follows = {rel.end_node for rel in session.run(
+            "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.id_user = $id_user RETURN f2",
+            id_user=id_user
+        )}
 
+        user_interests = set(user["u"]["interest"])
 
-"""
-    Generates profile recommendations based on shared interests and connections.
+        for u in users:
+            u_follows = {rel.end_node for rel in session.run(
+                "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.id_user = $id_user RETURN f2",
+                id_user=u["u"]["id_user"]
+            )}
 
-    @parameters:
-    id_user : int
-        The unique identifier of the user for whom profile recommendations are being generated.
+            follows_score = len(user_follows & u_follows) / len(user_follows | u_follows) if user_follows and u_follows else 0
+            u_interests = set(u["u"]["interest"])
+            interests_score = len(user_interests & u_interests) / len(user_interests | u_interests) if user_interests and u_interests else 0
 
-    @return:
-    list
-        A sorted list of user IDs representing recommended profiles, ranked by relevance.
+            rec_score = follows_score + interests_score
+            scores[u["u"]["id_user"]] = rec_score
 
-    @example:
-    >>> profile_recommendation(12345)
-    [67890, 23456, 98765]
-"""
+        return sorted(scores, key=scores.get, reverse=True)
 
+def posts_recommendation(id_user:int)->list[int]:
+    """
+    Generate post recommendations for a specific user based on hashtags and interests.
 
-def profile_recommendation(id_user):
-    matcher = graphe.nodes
-    id_user = str(id_user)
-    user = matcher.match("users").where("_.id_user = " + id_user).first()
-    users = matcher.match("users").where("_.id_user <> " + id_user)
+    Args:
+        id_user (int): The ID of the user.
 
-    scores = {}
+    Returns:
+        list: A sorted list of recommended post IDs.
+    """
+    with driver.session() as session:
+        posts = session.run(
+            "MATCH (p:posts) WHERE p.id_author <> $id_user RETURN p",
+            id_user=str(id_user)
+        )
 
-    match_relation = RelationshipMatcher(graphe)
-    user_relation = match_relation.match(nodes=(user, None), r_type="FOLLOWS")
-    user_follows = {us.end_node for us in user_relation}
+        user_hashtags = get_hastags(id_user)
+        scores = {}
 
-    user_interests = {interest for interest in user["interest"]}
+        if not user_hashtags:
+            user_interests = session.run(
+                "MATCH (u:users) WHERE u.id_user = $id_user RETURN u.interests AS interests",
+                id_user=id_user
+            ).single()["interests"]
 
-    for u in users:
-        relation = match_relation.match(nodes=(u, None), r_type="FOLLOWS")
-        u_follows = {us.end_node for us in relation}
+            for post in posts:
+                u = session.run(
+                    "MATCH (u:users) WHERE u.id_user = $id_author RETURN u.interests AS interests",
+                    id_author=post["id_author"]
+                ).single()["interests"]
 
-        if (len(user_follows) == 0) or (len(u_follows) == 0):
-            follows_score = 0
+                interests_score = len(set(user_interests) & set(u)) / len(set(user_interests) | set(u))
+                scores[post["id_post"]] = interests_score
         else:
-            follows_score = len(user_follows & u_follows) / len(user_follows | u_follows)
+            for post in posts:
+                post_hashtags = set(post["keys"])
+                score = len(user_hashtags & post_hashtags) / len(user_hashtags | post_hashtags)
+                scores[post["id_post"]] = score
 
-        u_interests = {interest for interest in u["interest"]}
-        interests_score = len(user_interests & u_interests) / len(user_interests | u_interests)
+        scores_tab = sorted(scores, key=scores.get, reverse=True)
 
-        rec_score = follows_score + interests_score
-        scores[u["id_user"]] = rec_score
+        for s in range(len(scores_tab)):
+            if random.random() >= 0.8:
+                scores_tab.insert(s, scores_tab[-1])
+                del scores_tab[-1]
 
-    return sorted(scores, key=scores.get, reverse=True)
+        return scores_tab
 
-
-
-"""
-    Generates post recommendations for a user based on shared hashtags or interests.
-
-    @parameters:
-    id_user : int
-        The unique identifier of the user for whom post recommendations are being generated.
-
-    @return:
-    list
-        A list of post IDs representing recommended posts, ranked by relevance.
-
-    @example:
-    >>> posts_recommendation(12345)
-    [56789, 12321, 67890]
-"""
-def posts_recommendation(id_user):
-    matcher = graphe.nodes
-    id_user = str(id_user)
-    posts = matcher.match("posts").where("_.id_author <> " + id_user)
-
-    user_hashtags = get_hastags(id_user)
-
-    scores = {}
-
-    if len(user_hashtags) == 0:
-        user = matcher.match("users").where("_.id_user = " + id_user).first()
-        user_interests = {interest for interest in user["interests"]}
-
-        for post in posts:
-            u = matcher.match("users").where("_.id_user = " + post["id_author"])
-            u_interests = {interest for interest in u["interests"]}
-
-            interests_score = len(user_interests & u_interests) / len(user_interests | u_interests)
-            scores[post["id_post"]] = interests_score
-    else:
-        for post in posts:
-            post_hashtags = {h for h in post["keys"]}
-
-            score = len(user_hashtags & post_hashtags) / len(user_hashtags | post_hashtags)
-            scores[post["id_post"]] = score
-
-    scores_tab = sorted(scores, key=scores.get, reverse=True)
-
-    for s in range(len(scores_tab)):
-        if random.random() >= 0.8:
-            scores_tab.insert(s, scores_tab[-1])
-            del scores_tab[-1]
-
-    return scores_tab
+# Close the driver when done
+driver.close()
