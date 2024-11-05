@@ -20,39 +20,6 @@ class Database(AuthDatabase):
         self.mongo_db = self.mongo_client['MONGO_DB']
         self.neo4j_driver = GraphDatabase.driver(app.config['NEO4J_URI'], auth=(app.config['NEO4J_USER'], app.config['NEO4J_PASSWORD']) if app.config['NEO4J_AUTH'] else None)
     
-    def recommend_users(self, user_id:int)->list[int]:
-        # Recommends users to follow based on shared interests or mutual connections
-        with self.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:FOLLOWS]->(f:User)-[:FOLLOWS]->(rec:User)
-                WHERE NOT (u)-[:FOLLOWS]->(rec) AND u.id_user <> rec.id_user
-                RETURN rec.id_user AS recommended_user, COUNT(*) AS common_followers
-                ORDER BY common_followers DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_user'] for record in result]
-
-    def recommend_posts(self, user_id:int)->list[int]:
-        # Recommends posts based on interests and liked content
-        with self.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:LIKES]->(:Post)-[:LIKES]-(p:Post)
-                WHERE NOT (u)-[:LIKES]->(p)
-                RETURN p.id_post AS recommended_post, COUNT(*) AS like_similarity
-                ORDER BY like_similarity DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_post'] for record in result]
-
-    def recommend_threads(self, user_id:int)->list[int]:
-        # Recommends threads based on user membership
-        with self.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(:Thread)-[:MEMBER_OF]-(t:Thread)
-                WHERE NOT (u)-[:MEMBER_OF]->(t)
-                RETURN t.id_thread AS recommended_thread, COUNT(*) AS common_members
-                ORDER BY common_members DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_thread'] for record in result]
-
     def close(self):
         # Close the connections
         self.mongo_client.close()
