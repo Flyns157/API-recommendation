@@ -80,7 +80,7 @@ class RecommendationAPI(Flask):
                 'status': self.mode if self.mode != 'deploy' else 'healthy',
             })
 
-    def run(self, host: str = None, port: int = None, mode: str = 'deploy', load_dotenv: bool = True, **options) -> None:
+    def run(self, host: str = None, port: int = None, mode: str = 'deploy', load_dotenv: bool = True, sync: bool = False, **options) -> None:
         """
         Run the RecommendationAPI server with specified host, port, and mode settings.
 
@@ -105,7 +105,7 @@ class RecommendationAPI(Flask):
         self.db.init_app(self)
         self.jwt.init_app(self)
         
-        if mode == 'debug':
+        if sync:
             self.db.sync.sync_all()
 
         return super().run(host=host, port=port, debug=mode.lower() in 'debug', load_dotenv=load_dotenv, **options)

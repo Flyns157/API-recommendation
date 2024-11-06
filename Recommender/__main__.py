@@ -23,7 +23,7 @@ import argparse
 import sys
 
 # =================================== Main ===================================
-def main(host: str = '0.0.0.0', port: int = 8080, mode: str = 'deploy'):
+def main(host: str = '0.0.0.0', port: int = 8080, mode: str = 'deploy', sync: bool = False) -> None:
     """
     Initializes and runs the RecommendationAPI application.
 
@@ -34,6 +34,7 @@ def main(host: str = '0.0.0.0', port: int = 8080, mode: str = 'deploy'):
             - 'deploy': Default deployment mode.
             - 'debug': Enables debugging features for development.
             - 'maintenance': Enables maintenance mode, limiting functionality.
+        sync (bool): Enable the synchronization between neo4j and mogoDB at starting
 
     Returns:
         None
@@ -42,11 +43,12 @@ def main(host: str = '0.0.0.0', port: int = 8080, mode: str = 'deploy'):
                             static_url_path='',
                             static_folder='assets',
                             template_folder='templates')
-    app.run(mode=mode, host=host, port=port)
+    app.run(mode=mode, host=host, port=port, sync=sync)
 
 # =================================== Run ===================================
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Python script")
+    parser.add_argument('--sync', action='store_true', help='Synchronize neo4j with mogoDB database')
     parser.add_argument('--maintenance', action='store_true', help='Maintenance mode')
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     parser.add_argument('--host', type=str, default='0.0.0.0', help='Host')
@@ -58,7 +60,8 @@ if __name__ == '__main__':
         # Determine mode based on command-line arguments and run the application
         main(mode='debug' if args.debug else 'maintenance' if args.maintenance else 'deploy',
              host=args.host,
-             port=args.port)
+             port=args.port,
+             sync=args.sync)
         rc = 0
     except Exception as e:
         print('Error: %s' % e, file=sys.stderr)
