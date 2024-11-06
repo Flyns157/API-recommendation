@@ -50,5 +50,8 @@ class RecommendationAPI(Flask):
         self.limiter.init_app(self)
         self.db.init_app(self)
         self.jwt.init_app(self)
+        
+        if mode == 'debug':
+            self.db.sync.sync_all()
 
         return super().run(host=host, port=port, debug=mode.lower() in 'debug', load_dotenv=load_dotenv, **options)

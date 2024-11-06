@@ -14,13 +14,14 @@ class Database(AuthDatabase):
             self.mongo_db = self.mongo_client[mongo_db]
         if neo4j_uri:
             self.neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
-            self.sync = Sincronizer(self.mongo_client, self.neo4j_driver)
+        self.sync = Sincronizer(self.mongo_client, self.neo4j_driver) if mongo_uri and mongo_db and neo4j_uri else Sincronizer()
     
     def init_app(self, app:Flask)->None:
         self.app = app
         self.mongo_client = MongoClient(app.config['MONGO_URI'])
         self.mongo_db = self.mongo_client['MONGO_DB']
         self.neo4j_driver = GraphDatabase.driver(app.config['NEO4J_URI'], auth=(app.config['NEO4J_USER'], app.config['NEO4J_PASSWORD']) if app.config['NEO4J_AUTH'] else None)
+        self.sync.set_conn(self.mongo_db, self.neo4j_driver)
     
     def close(self):
         # Close the connections

@@ -2,7 +2,11 @@ from pymongo.database import Database as MongoDatabase
 from neo4j import Driver as Neo4jDriver
 
 class Sincronizer:
-    def __init__(self, mongo_db:MongoDatabase, neo4j_db:Neo4jDriver)->None:
+    def __init__(self, mongo_db:MongoDatabase=None, neo4j_db:Neo4jDriver=None)->None:
+        self.mongo_db = mongo_db
+        self.neo4j_driver = neo4j_db
+    
+    def set_conn(self, mongo_db:MongoDatabase, neo4j_db:Neo4jDriver)->None:
         self.mongo_db = mongo_db
         self.neo4j_driver = neo4j_db
     
