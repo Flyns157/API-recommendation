@@ -9,9 +9,9 @@
         "https://img.freepik.com/photos-premium/escalier-vers-paradis-dans-portes-gloire-du-paradis-genere-par-ia_201606-8401.jpg"
     ],
     "keys":[
-        "paradise",
-        "heaven",
-        "trash"
+        1,
+        2,
+        3
     ],
     "likes":[
         2
@@ -27,7 +27,7 @@
     "date":"2021-10-25T10:24:15+00:00",
     "content":"Don't worry! well, now I'm not alone.",
     "keys":[
-        "trash"
+        3
     ],
     "likes":[
         1

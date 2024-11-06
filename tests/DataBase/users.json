@@ -11,9 +11,9 @@
     "follow":[2],
     "blocked":[],
     "interests":[
-        "football",
-        "basketball",
-        "tennis"
+        1,
+        4,
+        3
     ],
     "description":"the first admin, god of what if...",
     "status":"In vacation ;)"
@@ -31,8 +31,8 @@
     "followed":[],
     "blocked":[1],
     "interests":[
-        "football",
-        "politician"
+        1,
+        2
     ],
     "description":"Mmmmmmmmmmmmmm...mmmmongoDB !",
     "status":"In vacation ;)"
