@@ -1,20 +1,24 @@
 from pymongo.database import Database as MongoDatabase
 from neo4j import Driver as Neo4jDriver
 
-class Sincronizer:
-    def __init__(self, mongo_db:MongoDatabase=None, neo4j_db:Neo4jDriver=None)->None:
-        self.mongo_db = mongo_db
-        self.neo4j_driver = neo4j_db
+class Synchronizer:
+    def __init__(self, mongo_db:MongoDatabase=None, neo4j_driver:Neo4jDriver=None)->None:
+        self.set_conn(mongo_db = mongo_db, neo4j_driver = neo4j_driver)
     
-    def set_conn(self, mongo_db:MongoDatabase, neo4j_db:Neo4jDriver)->None:
+    def set_conn(self, mongo_db:MongoDatabase, neo4j_driver:Neo4jDriver)->None:
         self.mongo_db = mongo_db
-        self.neo4j_driver = neo4j_db
+        self.neo4j_driver = neo4j_driver
     
     def sync_all(self)->None:
-        self.sync_posts()
-        self.sync_roles()
-        self.sync_threads()
-        self.sync_users()
+        print("Data synchronization between mongoDB and neo4j databases ", end='')
+        try:
+            self.sync_posts()
+            self.sync_roles()
+            self.sync_threads()
+            self.sync_users()
+            print("[SUCCESS]")
+        except:
+            print("[FAILLED]")
     
     def sync_roles(self)->None:
         roles = self.mongo_db['roles'].find()
@@ -37,7 +41,7 @@ class Sincronizer:
                 """, 
                 id_user=user['id_user'], role=user['role'], username=user['username'],
                 name=user['name'], surname=user['surname'], birthdate=user['birthdate'], pp=user['pp'],
-                description=user['description'], status=user['status'], interests=user.get('interest', []))
+                description=user['description'], status=user['status'], interests=user.get('interests', []))
                 
                 # Handle relationships for follows and blocks
                 for follow_id in user.get('follow', []):

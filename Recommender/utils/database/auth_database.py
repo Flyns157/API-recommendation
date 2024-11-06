@@ -54,3 +54,6 @@ class AuthDatabase:
             """, (username))
             user = cursor.fetchone()
             return user is not None
+    
+    def close(self)->None:
+        self.conn.close()
