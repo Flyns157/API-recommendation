@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 recommendation_bp = Blueprint(name="recommendation_api", import_name=__name__, url_prefix="/recommend")
 recommender = MC_engine(db)
 
-@recommendation_bp.route('/recommend/users', methods=['GET'])
+@recommendation_bp.route('/users', methods=['GET'])
 @jwt_required(not Config.NO_AUTH)
 def recommend_users():
     """
@@ -59,13 +59,13 @@ def recommend_users():
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = recommender.recommend_users(int(user_id), follow_weight, interest_weight)
+        recommendations = recommender.recommend_users(user_id, follow_weight, interest_weight)
         return jsonify({"recommended_users": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_users: {e}")
         return jsonify({"error": str(e)}), 500
 
-@recommendation_bp.route('/recommend/posts', methods=['GET'])
+@recommendation_bp.route('/posts', methods=['GET'])
 @jwt_required(not Config.NO_AUTH)
 def recommend_posts():
     """
@@ -91,13 +91,13 @@ def recommend_posts():
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = recommender.recommend_posts(int(user_id), interest_weight, interaction_weight)
+        recommendations = recommender.recommend_posts(user_id, interest_weight, interaction_weight)
         return jsonify({"recommended_posts": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_posts: {e}")
         return jsonify({"error": str(e)}), 500
 
-@recommendation_bp.route('/recommend/threads', methods=['GET'])
+@recommendation_bp.route('/threads', methods=['GET'])
 @jwt_required(not Config.NO_AUTH)
 def recommend_threads():
     """
@@ -123,7 +123,7 @@ def recommend_threads():
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = recommender.recommend_threads(int(user_id), member_weight, interest_weight)
+        recommendations = recommender.recommend_threads(user_id, member_weight, interest_weight)
         return jsonify({"recommended_threads": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_threads: {e}")
