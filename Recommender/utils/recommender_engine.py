@@ -20,6 +20,9 @@ Usage:
 """
 
 from .database import Database
+
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 import random
 
 class recommender_engine:
@@ -179,6 +182,121 @@ class MC_engine(recommender_engine):
                 LIMIT 10
             """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight)
             return [record["thread_id"] for record in scores]
+
+class EM_engine(recommender_engine):
+    def _get_embedding(self, entity_type, entity_id):
+        """
+        Retrieve the embedding vector for a given entity from MongoDB.
+        
+        Args:
+            entity_type (str): The type of entity (e.g., 'user', 'post', 'thread').
+            entity_id (str): The ID of the entity.
+        
+        Returns:
+            np.ndarray: The embedding vector for the entity.
+        """
+        collection = self.db.mongo_db[entity_type]
+        entity = collection.find_one({"_id": entity_id}, {"embedding": 1})
+        return np.array(entity["embedding"]) if entity and "embedding" in entity else None
+
+    def recommend_users(self, id_user, top_n=50):
+        """
+        Recommend users based on similarity of embeddings.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of recommendations to return.
+
+        Returns:
+            list: A list of recommended user IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all users' embeddings except the target user
+        users = list(self.db.mongo_db["users"].find({"_id": {"$ne": id_user}}, {"_id": 1, "embedding": 1}))
+        
+        user_ids = []
+        user_embeddings = []
+        for user in users:
+            if "embedding" in user:
+                user_ids.append(user["_id"])
+                user_embeddings.append(np.array(user["embedding"]))
+
+        # Calculate cosine similarity between the target user and all other users
+        user_embeddings = np.vstack(user_embeddings)
+        similarities = cosine_similarity([user_embedding], user_embeddings).flatten()
+        
+        # Get top N similar users
+        recommended_ids = [user_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
+
+    def recommend_posts(self, id_user, top_n=50):
+        """
+        Recommend posts based on similarity of embeddings between user and posts.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of posts to recommend.
+
+        Returns:
+            list: A list of recommended post IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all posts' embeddings
+        posts = list(self.db.mongo_db["posts"].find({}, {"_id": 1, "embedding": 1}))
+        
+        post_ids = []
+        post_embeddings = []
+        for post in posts:
+            if "embedding" in post:
+                post_ids.append(post["_id"])
+                post_embeddings.append(np.array(post["embedding"]))
+
+        # Calculate cosine similarity between the user and all posts
+        post_embeddings = np.vstack(post_embeddings)
+        similarities = cosine_similarity([user_embedding], post_embeddings).flatten()
+        
+        # Get top N similar posts
+        recommended_ids = [post_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
+
+    def recommend_threads(self, id_user, top_n=50):
+        """
+        Recommend threads based on similarity of embeddings between user and threads.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of threads to recommend.
+
+        Returns:
+            list: A list of recommended thread IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all threads' embeddings
+        threads = list(self.db.mongo_db["threads"].find({}, {"_id": 1, "embedding": 1}))
+        
+        thread_ids = []
+        thread_embeddings = []
+        for thread in threads:
+            if "embedding" in thread:
+                thread_ids.append(thread["_id"])
+                thread_embeddings.append(np.array(thread["embedding"]))
+
+        # Calculate cosine similarity between the user and all threads
+        thread_embeddings = np.vstack(thread_embeddings)
+        similarities = cosine_similarity([user_embedding], thread_embeddings).flatten()
+        
+        # Get top N similar threads
+        recommended_ids = [thread_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
 
 # Jean-Alexis
 # =====================================================================================================================
