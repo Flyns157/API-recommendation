@@ -1,3 +1,24 @@
+"""
+This module defines the structure and implementation of a recommendation engine for social networks,
+focused on suggesting users, posts, and threads based on shared connections and interests. It
+provides an abstract base class `recommender_engine` with unimplemented recommendation methods,
+and two concrete classes, `MC_engine` and `JA_engine`, each with distinct recommendation strategies.
+
+Classes:
+    recommender_engine: Abstract base class for building a recommendation engine. Provides method
+        templates for recommending users, posts, and threads.
+    MC_engine: Monte Carlo-based implementation of `recommender_engine`. Suggests users, posts, and
+        threads based on mutual connections and engagement patterns.
+    JA_engine: A recommendation engine implementation that uses a combination of mutual follows and
+        interest-based scores. Provides additional methods for fetching user hashtags and calculating
+        recommendation scores.
+
+Usage:
+    Create an instance of `Database`, pass it to an `MC_engine` or `JA_engine` instance, and call the
+    relevant recommendation methods. For example, `recommend_users(user_id)`, `recommend_posts(user_id)`,
+    or `recommend_threads(user_id)`.
+"""
+
 from .database import Database
 import random
 
@@ -184,25 +205,26 @@ class JA_engine(recommender_engine):
             raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(
-                "MATCH (u:users) WHERE u.id_user = $id_user RETURN u",
+                "MATCH (u:User) WHERE u.id_user = $id_user RETURN u",
                 id_user=str(id_user)
             ).single()
 
             users = session.run(
-                "MATCH (u:users) WHERE u.id_user <> $id_user RETURN u"
+                "MATCH (u:User) WHERE u.id_user <> $id_user RETURN u",
+                id_user=id_user
             )
 
             scores = {}
             user_follows = {rel.end_node for rel in session.run(
-                "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.id_user = $id_user RETURN f2",
+                "MATCH (u:User)-[f:FOLLOWS]->(f2:User) WHERE u.id_user = $id_user RETURN f2",
                 id_user=id_user
             )}
 
-            user_interests = set(user["u"]["interest"])
+            user_interests = set(user["u"]["interests"])
 
             for u in users:
                 u_follows = {rel.end_node for rel in session.run(
-                    "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.id_user = $id_user RETURN f2",
+                    "MATCH (u:User)-[f:FOLLOWS]->(f2:User) WHERE u.id_user = $id_user RETURN f2",
                     id_user=u["u"]["id_user"]
                 )}
 
