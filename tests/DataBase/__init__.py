@@ -6,7 +6,7 @@ class DatabaseTest:
     def __init__(self, db_name='watif'):
         self.client = MongoClient('mongodb://localhost:27017/')
         self.db = self.client[db_name]
-        self.collections = ['users', 'threads', 'roles', 'posts']
+        self.collections = ['users', 'threads', 'roles', 'posts', 'interests', 'keys']
         self.data_dir = Path(__file__).parent
 
     def load_json_data(self, file_name):
