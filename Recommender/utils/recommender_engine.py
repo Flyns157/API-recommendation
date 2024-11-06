@@ -41,12 +41,12 @@ class recommender_engine:
         """
         self.db = db
     
-    def recommend_users(self, user_id: int) -> list[int]:
+    def recommend_users(self, user_id: str) -> list[str]:
         """
         Recommends users for a specified user to follow. To be implemented in a subclass.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The unique identifier of the user for whom recommendations are being generated.
 
         Returns:
             list[int]: List of recommended user IDs.
@@ -56,30 +56,30 @@ class recommender_engine:
         """
         raise NotImplementedError('Must be implemented in subclass / child class.')
 
-    def recommend_posts(self, user_id: int) -> list[int]:
+    def recommend_posts(self, user_id: str) -> list[str]:
         """
         Recommends posts for a specified user based on interests and content engagement. To be implemented in a subclass.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The unique identifier of the user for whom recommendations are being generated.
 
         Returns:
-            list[int]: List of recommended post IDs.
+            list[str]: List of recommended post IDs.
 
         Raises:
             NotImplementedError: If the method is not implemented in a subclass.
         """
         raise NotImplementedError('Must be implemented in subclass / child class.')
     
-    def recommend_threads(self, user_id: int) -> list[int]:
+    def recommend_threads(self, user_id: str) -> list[str]:
         """
         Recommends threads for a specified user to join based on shared memberships. To be implemented in a subclass.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The unique identifier of the user for whom recommendations are being generated.
 
         Returns:
-            list[int]: List of recommended thread IDs.
+            list[str]: List of recommended thread IDs.
 
         Raises:
             NotImplementedError: If the method is not implemented in a subclass.
@@ -94,80 +94,101 @@ class MC_engine(recommender_engine):
     Generates recommendations based on shared interests, mutual connections, and engagement patterns.
 
     Methods:
-        recommend_users: Recommends users to follow based on mutual connections.
-        recommend_posts: Recommends posts based on similar engagement patterns.
-        recommend_threads: Recommends threads to join based on shared memberships.
+        recommend_users(user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5) -> list[str]:
+            Recommends users to follow based on common followers and shared interests.
+
+        recommend_posts(user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3) -> list[str]:
+            Recommends posts based on shared interests and past interactions.
+
+        recommend_threads(user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4) -> list[str]:
+            Recommends threads to join based on shared memberships and relevant interests.
     """
-    
-    def recommend_users(self, user_id: int) -> list[int]:
+
+    def recommend_users(self, user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5) -> list[str]:
         """
-        Recommends users to follow for a given user, based on mutual followers. Excludes users already followed
-        by the specified user.
+        Recommends users to follow based on common followers and shared interests.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The ID of the user for whom recommendations are being generated.
+            follow_weight (float, optional): Weight assigned to the influence of common followers in the recommendation score.
+            interest_weight (float, optional): Weight assigned to the influence of shared interests in the recommendation score.
 
         Returns:
-            list[int]: List of user IDs recommended for the specified user.
+            list[str]: A list of recommended user IDs, sorted by relevance.
         """
         with self.db.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:FOLLOWS]->(f:User)-[:FOLLOWS]->(rec:User)
-                WHERE NOT (u)-[:FOLLOWS]->(rec) AND u.id_user <> rec.id_user
-                RETURN rec.id_user AS recommended_user, COUNT(*) AS common_followers
-                ORDER BY common_followers DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_user'] for record in result]
+            scores = session.run("""
+                MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:INTERESTED_IN]-(u2:User)
+                WHERE u2.id_user <> $user_id
+                WITH u2, COUNT(i) AS common_interests
+                MATCH (u)-[:FOLLOWS]->(f:User)<-[:FOLLOWS]-(u2)
+                WITH u2, common_interests, COUNT(f) AS common_follows
+                RETURN u2.id_user AS user_id,
+                       ($follow_weight * common_follows + $interest_weight * common_interests) AS score
+                ORDER BY score DESC
+                LIMIT 10
+            """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight)
+            return [record["user_id"] for record in scores]
 
-    def recommend_posts(self, user_id: int) -> list[int]:
+    def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3) -> list[str]:
         """
-        Recommends posts for a given user based on other users' likes on posts that the specified user has also liked.
-        Excludes posts already liked by the user.
+        Recommends posts based on shared interests and user interactions.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The ID of the user for whom recommendations are being generated.
+            interest_weight (float, optional): Weight assigned to the influence of shared interests in the recommendation score.
+            interaction_weight (float, optional): Weight assigned to the influence of user interactions (e.g., likes, comments) in the recommendation score.
 
         Returns:
-            list[int]: List of post IDs recommended for the specified user.
+            list[str]: A list of recommended post IDs, sorted by relevance.
         """
         with self.db.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:LIKES]->(:Post)-[:LIKES]-(p:Post)
-                WHERE NOT (u)-[:LIKES]->(p)
-                RETURN p.id_post AS recommended_post, COUNT(*) AS like_similarity
-                ORDER BY like_similarity DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_post'] for record in result]
+            scores = session.run("""
+                MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(p:Post)
+                WITH p, COUNT(i) AS interest_score
+                OPTIONAL MATCH (u)-[:LIKES|:COMMENTED_ON]->(p)
+                WITH p, interest_score, COUNT(u) AS interaction_score
+                RETURN p.id_post AS post_id,
+                       ($interest_weight * interest_score + $interaction_weight * interaction_score) AS score
+                ORDER BY score DESC
+                LIMIT 10
+            """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight)
+            return [record["post_id"] for record in scores]
 
-    def recommend_threads(self, user_id: int) -> list[int]:
+    def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4) -> list[str]:
         """
-        Recommends threads to join for a given user based on shared membership with other users in different threads.
-        Excludes threads the user is already a member of.
+        Recommends threads to join based on shared memberships and user interests.
 
         Parameters:
-            user_id (int): The unique identifier of the user for whom recommendations are being generated.
+            user_id (str): The ID of the user for whom recommendations are being generated.
+            member_weight (float, optional): Weight assigned to the influence of shared memberships in the recommendation score.
+            interest_weight (float, optional): Weight assigned to the influence of shared interests in the recommendation score.
 
         Returns:
-            list[int]: List of thread IDs recommended for the specified user.
+            list[str]: A list of recommended thread IDs, sorted by relevance.
         """
         with self.db.neo4j_driver.session() as session:
-            result = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(:Thread)-[:MEMBER_OF]-(t:Thread)
-                WHERE NOT (u)-[:MEMBER_OF]->(t)
-                RETURN t.id_thread AS recommended_thread, COUNT(*) AS common_members
-                ORDER BY common_members DESC LIMIT 5
-            """, user_id=user_id)
-            return [record['recommended_thread'] for record in result]
+            scores = session.run("""
+                MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:User)
+                WITH t, COUNT(u2) AS member_score
+                MATCH (u)-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(t)
+                WITH t, member_score, COUNT(i) AS interest_score
+                RETURN t.id_thread AS thread_id,
+                       ($member_weight * member_score + $interest_weight * interest_score) AS score
+                ORDER BY score DESC
+                LIMIT 10
+            """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight)
+            return [record["thread_id"] for record in scores]
 
 # Jean-Alexis
 # =====================================================================================================================
 class JA_engine(recommender_engine):
-    def get_hastags(self, id_user:int)->set:
+    def get_hastags(self, id_user: str) -> set:
         """
         Retrieve hashtags used by a specific user.
 
         Args:
-            id_user (int): The ID of the user.
+            id_user (str): The ID of the user.
 
         Returns:
             set: A set of hashtags used by the user.
@@ -182,17 +203,17 @@ class JA_engine(recommender_engine):
                 hashtag_set.update(record["hashtags"])
             return hashtag_set
 
-    def recommend_users(self, id_user:int, follow_weight:float=0.4, intrest_weight:float=0.6)->list[int]:
+    def recommend_users(self, id_user: str, follow_weight: float = 0.4, intrest_weight: float = 0.6) -> list[str]:
         """
         Generate profile recommendations for a specific user based on mutual follows and interests.
 
         Args:
-            id_user (int): The ID of the user.
+            id_user (str): The ID of the user.
             follow_weight (float): The weight given to the follow score in the recommendation algorithm. Default is 0.4.
             intrest_weight (float): The weight given to the interest score in the recommendation algorithm. Default is 0.6.
 
         Returns:
-            list[int]: A sorted list of recommended user IDs.
+            list[str]: A sorted list of recommended user IDs.
 
         Raises:
             ValueError: If the sum of follow_weight and intrest_weight is not equal to 1.0.
@@ -237,12 +258,12 @@ class JA_engine(recommender_engine):
 
             return sorted(scores, key=scores.get, reverse=True)
 
-    def recommend_posts(self, id_user:int)->list[int]:
+    def recommend_posts(self, id_user: str) -> list[str]:
         """
         Generate post recommendations for a specific user based on hashtags and interests.
 
         Args:
-            id_user (int): The ID of the user.
+            id_user (str): The ID of the user.
 
         Returns:
             list: A sorted list of recommended post IDs.
