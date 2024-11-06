@@ -1,4 +1,4 @@
-'''========================= /!\ Deprecated /!\ ========================='''
+"""========================= /!\\ Deprecated /!\\ ========================="""
 
 from pymongo.database import Database as MongoDatabase
 from neo4j import Driver as Neo4jDriver
@@ -13,8 +13,7 @@ class Synchronizer:
         mongo_db (MongoDatabase): The MongoDB database instance.
         neo4j_driver (Neo4jDriver): The Neo4j driver instance.
     """
-    
-    '''========================= /!\ Deprecated /!\ ========================='''
+
     def __init__(self, mongo_db: MongoDatabase = None, neo4j_driver: Neo4jDriver = None) -> None:
         """
         Initializes the Synchronizer instance with optional MongoDB and Neo4j connections.

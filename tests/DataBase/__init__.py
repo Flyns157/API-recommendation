@@ -107,6 +107,7 @@ class DatabaseTest:
 
 if __name__ == '__main__':
     db_test = DatabaseTest()
+    db_test.teardown_database()
     db_test.setup_database()
     print("Test database 'watif' has been set up with fresh data.")
     db_test.close_connection()
