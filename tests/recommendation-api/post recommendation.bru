@@ -5,7 +5,11 @@ meta {
 }
 
 get {
-  url: http://127.0.0.1:8080/api/recommender/posts/672b3ea0aa64b8eb4ff12da6
+  url: http://127.0.0.1:8080/recommend/posts?user_id=672b3ea0aa64b8eb4ff12da6
   body: none
   auth: none
+}
+
+params:query {
+  user_id: 672b3ea0aa64b8eb4ff12da6
 }
