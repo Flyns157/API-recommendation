@@ -8,6 +8,7 @@ Classes:
 
 import string
 import random
+import re
 
 from .database import Database
 
@@ -38,3 +39,17 @@ class Utils:
         """
         CHARS = string.ascii_letters + string.digits
         return ''.join(random.choice(CHARS) for _ in range(size))
+
+    @classmethod
+    def snake_to_camel(cls, snake_str: str) -> str:
+        """
+        Convertit une chaîne de caractères de snake_case à camelCase.
+
+        Args:
+            snake_str (str): La chaîne de caractères en snake_case.
+
+        Returns:
+            str: La chaîne de caractères convertie en camelCase.
+        """
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.title() for x in components[1:])
