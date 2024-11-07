@@ -24,14 +24,14 @@ class Synchronizer:
         """
         self.mongo_db = mongo_db
         self.neo4j_driver = neo4j_driver
-        
+
     def _create_constraints(self):
         """Create necessary constraints in Neo4j."""
         with self.neo4j_driver.session() as session:
             # Create constraints for unique IDs
             constraints = [
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id_user IS UNIQUE",
-                "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Post) REQUIRE p.id_post IS UNIQUE",
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Post) REQUIRE p.idPost IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Thread) REQUIRE t.id_thread IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (k:Key) REQUIRE k.id_key IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (r:Role) REQUIRE r.name IS UNIQUE",
@@ -48,42 +48,42 @@ class Synchronizer:
             for user in users:
                 # Create user node
                 create_user = """
-                MERGE (u:User {id_user: $id_user})
+                MERGE (u:User {idUser: $id_user})
                 SET u += $properties
                 """
                 properties = {k: v for k, v in user.items() if k not in ['_id', 'id_user', 'follow', 'blocked', 'interests', 'role']}
                 session.run(create_user, id_user=str(user['_id']), properties=properties)
 
                 session.run("""
-                    MATCH (u:User {id_user: $user_id})
+                    MATCH (u:User {idUser: $user_id})
                     MATCH (r:Role {name: $role_name})
                     MERGE (u)-[:HAS_ROLE]->(r)
                     """, user_id=str(user['_id']), role_name=user['role'])
 
                 # Create relationships
                 if 'follow' in user:
-                    for followed_id in user['follow']:
+                    for id_follows in user['follow']:
                         session.run("""
-                        MATCH (u1:User {id_user: $user_id})
-                        MATCH (u2:User {id_user: $followed_id})
+                        MATCH (u1:User {idUser: $user_id})
+                        MATCH (u2:User {idUser: $id_follows})
                         MERGE (u1)-[:FOLLOWS]->(u2)
-                        """, user_id=str(user['_id']), followed_id=followed_id)
+                        """, user_id=str(user['_id']), id_follows=id_follows)
 
                 if 'blocked' in user:
                     for blocked_id in user['blocked']:
                         session.run("""
-                        MATCH (u1:User {id_user: $user_id})
-                        MATCH (u2:User {id_user: $blocked_id})
+                        MATCH (u1:User {idUser: $user_id})
+                        MATCH (u2:User {idUser: $blocked_id})
                         MERGE (u1)-[:BLOCKS]->(u2)
                         """, user_id=str(user['_id']), blocked_id=blocked_id)
 
                 if 'interests' in user:
                     for interest_id in user['interests']:
                         session.run("""
-                        MATCH (u:User {id_user: $user_id})
-                        MATCH (k:Interest {id_interest: $key_id})
+                        MATCH (u:User {idUser: $user_id})
+                        MATCH (k:Interest {idInterest: $id_key})
                         MERGE (u)-[:INTERESTED_IN]->(k)
-                        """, user_id=str(user['_id']), key_id=interest_id)
+                        """, user_id=str(user['_id']), id_key=interest_id)
 
     def sync_roles(self):
         """Synchronize roles from MongoDB to Neo4j."""
@@ -116,7 +116,7 @@ class Synchronizer:
             for thread in threads:
                 # Create thread node
                 create_thread = """
-                MERGE (t:Thread {id_thread: $id_thread})
+                MERGE (t:Thread {idThread: $id_thread})
                 SET t += $properties
                 """
                 properties = {k: v for k, v in thread.items() if k not in ['_id', 'id_thread', 'members', 'id_owner', 'admins']}
@@ -125,26 +125,26 @@ class Synchronizer:
                 # Create relationships
                 # Owner relationship
                 session.run("""
-                MATCH (u:User {id_user: $owner_id})
-                MATCH (t:Thread {id_thread: $thread_id})
+                MATCH (u:User {idUser: $owner_id})
+                MATCH (t:Thread {idThread: $id_thread})
                 MERGE (u)-[:OWNS]->(t)
-                """, owner_id=thread['id_owner'], thread_id=str(thread['_id']))
+                """, owner_id=thread['id_owner'], id_thread=str(thread['_id']))
 
                 # Members relationship
                 for member_id in thread['members']:
                     session.run("""
-                    MATCH (u:User {id_user: $member_id})
-                    MATCH (t:Thread {id_thread: $thread_id})
+                    MATCH (u:User {idUser: $member_id})
+                    MATCH (t:Thread {idThread: $id_thread})
                     MERGE (u)-[:MEMBER_OF]->(t)
-                    """, member_id=member_id, thread_id=str(thread['_id']))
+                    """, member_id=member_id, id_thread=str(thread['_id']))
 
                 # Admins relationship
                 for admin_id in thread['admins']:
                     session.run("""
-                    MATCH (u:User {id_user: $admin_id})
-                    MATCH (t:Thread {id_thread: $thread_id})
+                    MATCH (u:User {idUser: $admin_id})
+                    MATCH (t:Thread {idThread: $id_thread})
                     MERGE (u)-[:ADMIN_OF]->(t)
-                    """, admin_id=admin_id, thread_id=str(thread['_id']))
+                    """, admin_id=admin_id, id_thread=str(thread['_id']))
 
     def sync_posts(self):
         """Synchronize posts from MongoDB to Neo4j."""
@@ -154,50 +154,50 @@ class Synchronizer:
             for post in posts:
                 # Create post node
                 create_post = """
-                MERGE (p:Post {id_post: $id_post})
+                MERGE (p:Post {idPost: $idPost})
                 SET p += $properties
                 """
-                properties = {k: v for k, v in post.items() if k not in ['_id', 'id_post', 'id_thread', 'id_author', 'keys', 'likes', 'comments']}
-                session.run(create_post, id_post=str(post['_id']), properties=properties)
+                properties = {k: v for k, v in post.items() if k not in ['_id', 'idPost', 'id_thread', 'id_author', 'keys', 'likes', 'comments']}
+                session.run(create_post, idPost=str(post['_id']), properties=properties)
 
                 # Create relationships
                 # Author relationship
                 session.run("""
-                MATCH (u:User {id_user: $author_id})
-                MATCH (p:Post {id_post: $post_id})
+                MATCH (u:User {idUser: $id_author})
+                MATCH (p:Post {idPost: $id_post})
                 MERGE (u)-[:AUTHORED]->(p)
-                """, author_id=post['id_author'], post_id=str(post['_id']))
+                """, id_author=post['id_author'], id_post=str(post['_id']))
 
                 # Thread relationship
                 session.run("""
-                MATCH (t:Thread {id_thread: $thread_id})
-                MATCH (p:Post {id_post: $post_id})
+                MATCH (t:Thread {idThread: $id_thread})
+                MATCH (p:Post {idPost: $id_post})
                 MERGE (p)-[:POSTED_IN]->(t)
-                """, thread_id=post['id_thread'], post_id=str(post['_id']))
+                """, id_thread=post['id_thread'], id_post=str(post['_id']))
 
                 # Keys relationship
-                for key_id in post.get('keys', []):
+                for id_key in post.get('keys', []):
                     session.run("""
-                    MATCH (p:Post {id_post: $post_id})
-                    MATCH (k:Key {id_key: $key_id})
+                    MATCH (p:Post {idPost: $id_post})
+                    MATCH (k:Key {idkey: $id_key})
                     MERGE (p)-[:TAGGED_WITH]->(k)
-                    """, post_id=str(post['_id']), key_id=key_id)
+                    """, id_post=str(post['_id']), id_key=id_key)
 
                 # Likes relationship
-                for liker_id in post.get('likes', []):
+                for id_liker in post.get('likes', []):
                     session.run("""
-                    MATCH (u:User {id_user: $liker_id})
-                    MATCH (p:Post {id_post: $post_id})
+                    MATCH (u:User {idUser: $id_liker})
+                    MATCH (p:Post {idPost: $id_post})
                     MERGE (u)-[:LIKES]->(p)
-                    """, liker_id=liker_id, post_id=str(post['_id']))
+                    """, id_liker=id_liker, id_post=str(post['_id']))
 
                 # Comments relationship
-                for commenter_id in post.get('comments', []):
+                for id_commenter in post.get('comments', []):
                     session.run("""
-                    MATCH (u:User {id_user: $commenter_id})
-                    MATCH (p:Post {id_post: $post_id})
+                    MATCH (u:User {idUser: $id_commenter})
+                    MATCH (p:Post {idPost: $id_post})
                     MERGE (u)-[:COMMENTED_ON]->(p)
-                    """, commenter_id=commenter_id, post_id=str(post['_id']))
+                    """, id_commenter=id_commenter, id_post=str(post['_id']))
 
     def sync_keys(self):
         """Synchronize keys from MongoDB to Neo4j."""
@@ -207,7 +207,7 @@ class Synchronizer:
             for key in keys:
                 # Create key node
                 create_key = """
-                MERGE (k:Key {id_key: $id_key})
+                MERGE (k:Key {idKey: $id_key})
                 SET k += $properties
                 """
                 properties = {k: v for k, v in key.items() if k not in ['_id', 'id_key']}
@@ -221,7 +221,7 @@ class Synchronizer:
             for interest in interests:
                 # Create interest node
                 create_interest = """
-                MERGE (i:Interest {id_interest: $id_interest})
+                MERGE (i:Interest {idInterest: $id_interest})
                 SET i += $properties
                 """
                 properties = {k: v for k, v in interest.items() if k not in ['_id', 'id_interest']}
