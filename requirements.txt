@@ -17,3 +17,4 @@ pymongo[srv]
 numpy
 scipy
 scikit-learn
+sentence-transformers
