@@ -6,6 +6,7 @@ Classes:
     Utils: Contains utility methods, such as generating verification codes.
 """
 
+import numpy as np
 import string
 import random
 import re
@@ -53,3 +54,31 @@ class Utils:
         """
         components = snake_str.split('_')
         return components[0] + ''.join(x.title() for x in components[1:])
+
+    @classmethod
+    def array_avg(cls, matrices):
+        """
+        Calcule la moyenne d'une liste de matrices (numpy.ndarray).
+
+        Args:
+            matrices (list of numpy.ndarray): Liste de matrices à moyenner.
+
+        Returns:
+            numpy.ndarray: La matrice moyenne.
+        """
+        matrices = list(matrices)
+        if not matrices:
+            raise ValueError("La liste de matrices ne doit pas être vide.")
+        
+        # Vérifier que toutes les matrices ont la même forme
+        shape = matrices[0].shape
+        if not all(matrix.shape == shape for matrix in matrices):
+            raise ValueError("Toutes les matrices doivent avoir la même forme.")
+        
+        # Calculer la somme des matrices
+        sum_matrix = np.sum(matrices, axis=0)
+        
+        # Diviser par le nombre de matrices pour obtenir la moyenne
+        average_matrix = sum_matrix / len(matrices)
+        
+        return average_matrix
