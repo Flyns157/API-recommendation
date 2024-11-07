@@ -21,7 +21,6 @@ Usage:
 
 from .database import Database
 
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import random
 
@@ -91,6 +90,9 @@ class recommender_engine:
 
 # Mattéo
 # =====================================================================================================================
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+
 class MC_engine(recommender_engine):
     """
     Monte Carlo-based recommendation engine for suggesting users to follow, posts to view, and threads to join.
@@ -183,7 +185,16 @@ class MC_engine(recommender_engine):
             """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight)
             return [record["thread_id"] for record in scores]
 
+# Mattéo - embedding
+# =====================================================================================================================
+from .embedding import watif_embedder
 class EM_engine(recommender_engine):
+    def __init__(self, db: Database, user_embeddings_path='user_embeddings.npy', post_embeddings_path='post_embeddings.npy', thread_embeddings_path='thread_embeddings.npy') -> None:
+        super().__init__(db)
+        self.embedder = watif_embedder(user_embeddings_path = user_embeddings_path,
+                                        post_embeddings_path = post_embeddings_path,
+                                        thread_embeddings_path = thread_embeddings_path)
+
     def _get_embedding(self, entity_type, entity_id):
         """
         Retrieve the embedding vector for a given entity from MongoDB.
