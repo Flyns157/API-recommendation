@@ -1,5 +1,4 @@
 [{
-    "id_user":1,
     "role":"admin",
     "username":"HarryNique",
     "password":"Im_1he-best",
@@ -19,7 +18,6 @@
     "status":"In vacation ;)"
 },
 {
-    "id_user":2,
     "role":"admin",
     "username":"Memorable",
     "password":"Im_1he-best",
@@ -28,7 +26,7 @@
     "surname":"inoubli",
     "birthdate":"2001-09-11",
     "pp":"https://www.cril.univ-artois.fr/~inoubli/assets/img/photo.jpg",
-    "followed":[],
+    "follow":[],
     "blocked":[1],
     "interests":[
         1,
