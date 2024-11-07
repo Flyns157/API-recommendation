@@ -30,7 +30,7 @@ from . import db
 
 logger = logging.getLogger(__name__)
 
-mc_recommendation_bp = Blueprint(name="recommendation_api", import_name=__name__, url_prefix="/recommend/MC")
+mc_recommendation_bp = Blueprint(name="mc_recommendation_api", import_name=__name__, url_prefix="/recommend/MC")
 from .utils.recommender_engine import MC_engine
 mc_recommender = MC_engine(db)
 
@@ -131,7 +131,7 @@ def recommend_threads():
         return jsonify({"error": str(e)}), 500
 
 
-em_recommendation_bp = Blueprint(name="recommendation_api", import_name=__name__, url_prefix="/recommend/EM")
+em_recommendation_bp = Blueprint(name="em_recommendation_api", import_name=__name__, url_prefix="/recommend/EM")
 from .utils.recommender_engine import EM_engine
 em_recommender = EM_engine(db)
 

@@ -14,7 +14,7 @@ Modules:
 Classes:
     - RecommendationAPI: The main API server class, handling initialization and configuration for the API.
 """
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 from flask_limiter.util import get_remote_address
 from flask_jwt_extended import JWTManager
@@ -64,8 +64,11 @@ class RecommendationAPI(Flask):
         from .auth import bp as auth_bp
         self.register_blueprint(auth_bp)
         
-        from .api import recommendation_bp
-        self.register_blueprint(recommendation_bp)
+        from .api import mc_recommendation_bp
+        self.register_blueprint(mc_recommendation_bp)
+        
+        from .api import em_recommendation_bp
+        self.register_blueprint(em_recommendation_bp)
         
         @self.route('/health', methods=['GET'])
         def health_check():
