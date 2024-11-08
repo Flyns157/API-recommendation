@@ -247,7 +247,7 @@ class MC_embedder(watif_integrated_embedder):
             ValueError: If the sum of `follow_weight`, `interest_weight`, and `description_weight` is not equal to 1.
         """
         entity = self.get_embedding('users', id_user)
-        if entity: return entity["embedding"]
+        if "embedding" in entity: return entity["embedding"]
         
         if not np.isclose(follow_weight + interest_weight + description_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments follow_weight, interest_weight and description_weight must be 1.0')
@@ -287,7 +287,7 @@ class MC_embedder(watif_integrated_embedder):
             ValueError: If the sum of `key_weight`, `title_weight`, `content_weight`, and `author_weight` is not equal to 1.
         """
         entity = self.get_embedding('posts', id_post)
-        if entity: return entity["embedding"]
+        if "embedding" in entity: return entity["embedding"]
         
         if not np.isclose(key_weight + title_weight + content_weight + author_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments key_weight, title_weight, content_weight and author_weight must be 1.0')
@@ -334,7 +334,7 @@ class MC_embedder(watif_integrated_embedder):
             ValueError: If the sum of `author_weight`, `name_weight`, `member_weight`, and `post_weight` is not equal to 1.
         """
         entity = self.get_embedding('threads', id_thread)
-        if entity: return entity["embedding"]
+        if "embedding" in entity: return entity["embedding"]
         
         if not np.isclose(author_weight + name_weight + member_weight + post_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments author_weight, name_weight, member_weight and post_weight must be 1.0')
@@ -379,7 +379,7 @@ class MC_embedder(watif_integrated_embedder):
             np.ndarray: The generated or retrieved key embedding as a NumPy array.
         """
         entity = self.get_embedding('keys', id_key)
-        return entity if entity else self.model.encode(entity['name'], *args, **kwargs)
+        return entity["embedding"] if "embedding" in entity else self.model.encode(entity['name'], *args, **kwargs)
 
     def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -394,7 +394,7 @@ class MC_embedder(watif_integrated_embedder):
             np.ndarray: The generated or retrieved interest embedding as a NumPy array.
         """
         entity = self.get_embedding('interest', id_interest)
-        return entity if entity else self.model.encode(entity['name'], *args, **kwargs)
+        return entity["embedding"] if "embedding" in entity else self.model.encode(entity['name'], *args, **kwargs)
 
     def get_user_embeddings(self, *args, **kwargs) -> dict:
         """
