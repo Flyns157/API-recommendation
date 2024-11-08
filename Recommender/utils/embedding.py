@@ -3,7 +3,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 import os
 
-class embedder:
+class local_embedder:
     def __init__(self, user_embeddings_path='user_embeddings.npy', 
                 post_embeddings_path='post_embeddings.npy', 
                 thread_embeddings_path='thread_embeddings.npy', 
@@ -11,18 +11,18 @@ class embedder:
                 key_embeddings_path='key_embeddings.npy'):
         
         # Initialisation des chemins d'embeddings
+        self.interest_embeddings_path = interest_embeddings_path
+        self.key_embeddings_path = key_embeddings_path
         self.user_embeddings_path = user_embeddings_path
         self.post_embeddings_path = post_embeddings_path
         self.thread_embeddings_path = thread_embeddings_path
-        self.interest_embeddings_path = interest_embeddings_path
-        self.key_embeddings_path = key_embeddings_path
 
         # Chargement des embeddings si les fichiers existent, sinon initialisation vide
+        self.interest_embeddings = self.load_embeddings(self.interest_embeddings_path)
+        self.key_embeddings = self.load_embeddings(self.key_embeddings_path)
         self.user_embeddings = self.load_embeddings(self.user_embeddings_path)
         self.post_embeddings = self.load_embeddings(self.post_embeddings_path)
         self.thread_embeddings = self.load_embeddings(self.thread_embeddings_path)
-        self.interest_embeddings = self.load_embeddings(self.interest_embeddings_path)
-        self.key_embeddings = self.load_embeddings(self.key_embeddings_path)
 
         # Initialisation du modèle d'embeddings
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -40,7 +40,7 @@ class embedder:
     def generate_embedding(self, text: str) -> np.ndarray:
         return self.model.encode(text)
 
-class interface_embedder(embedder):
+class interface_local_embedder(local_embedder):
     def generate_user_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError('Must be implemented in subclass / child class.')
     def generate_post_embeddings(self, *args, **kwargs) -> dict:
@@ -51,82 +51,100 @@ class interface_embedder(embedder):
         raise NotImplementedError('Must be implemented in subclass / child class.')
     def generate_key_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError('Must be implemented in subclass / child class.')
+    def encode(self, obj: object, *args, **kwargs) -> np.ndarray | dict:
+        raise NotImplementedError('Must be implemented in subclass / child class.')
 
 from ..utils import Utils
-class watif_embedder(interface_embedder):
+class watif_embedder(interface_local_embedder):
     def generate_user_embeddings(self, *args, **kwargs) -> dict:
         return {user['_id']or user['idUser']:
                 self.generate_user_embeddings(user)
                 for user in kwargs.get('users', [])}
         
-    def generate_user_embedding(self, user: dict) -> np.ndarray:
-        return Utils.array_avg(
-                [self.interest_embeddings[id_interest] 
-                for id_interest in user['interests']] + [
-                    self.generate_embedding(user['description'])
-                ] + Utils.array_avg(
-                    self.user_embeddings[user[id_user]]
-                    for id_user in user['follow']
-                )
-            )
+    def generate_user_embedding(self, user: dict, *args, **kwargs) -> np.ndarray:
+        tmp = self.user_embeddings.get(user['_id'])
+        return tmp if tmp else Utils.array_avg(
+                                    [self.interest_embeddings[id_interest] 
+                                    for id_interest in user['interests']] + [
+                                        self.generate_embedding(user['description'])
+                                    ] + Utils.array_avg(
+                                        self.user_embeddings[user[id_user]]
+                                        for id_user in user['follow']
+                                    )
+                                )
 
     def generate_post_embeddings(self, *args, **kwargs) -> dict:
-        # TODO : complete this methode
         return {post['_id']or post['idPost']:
             self.generate_post_embedding(post)
             for post in kwargs.get('posts', [])}
 
-    def generate_post_embedding(self, post: dict) -> np.ndarray:
-        # TODO : complete this methode
-        return Utils.array_avg(
-                [
-                    self.key_embeddings[id_key] for id_key in post['keys']
-                ] + [
-                    self.generate_embedding(f'Titre:\n{post['title']}.\nContent:\n{post['content']}'),
-                    self.user_embeddings[post['idAuthor']]
-                ]
-            )
+    def generate_post_embedding(self, post: dict, *args, **kwargs) -> np.ndarray:
+        tmp = self.post_embeddings.get(post['_id'], None)
+        return tmp if tmp else Utils.array_avg(
+                                    [
+                                        self.key_embeddings[id_key] for id_key in post['keys']
+                                    ] + [
+                                        self.generate_embedding(f'Titre:\n{post['title']}.\nContent:\n{post['content']}'),
+                                        self.user_embeddings[post['idAuthor']]
+                                    ]
+                                )
 
     def generate_thread_embeddings(self, *args, **kwargs) -> dict:
-        # TODO : complete this methode
         return {post['_id']or post['idPost']:
             self.generate_post_embedding(post)
-            for post in kwargs.get('threads', [])}
+            for post in kwargs.get('threads') or (args[0] if Utils.isiterable(args[0]) else args)}
 
-    def generate_thread_embedding(self, thread: dict, posts: list[dict]) -> np.ndarray:
-        # TODO : complete this methode
-        return Utils.array_avg(
-                [
-                    self.user_embeddings[id_member]
-                    for id_member in thread['members']
-                ] + [
-                    self.post_embeddings[post['idPost']] for post in posts if post['idThread']
-                ]
-            )
+    def generate_thread_embedding(self, thread: dict, posts: list[dict], *args, **kwargs) -> np.ndarray:
+        tmp = self.thread_embeddings.get(thread['_id'])
+        return tmp if tmp else Utils.array_avg(
+                                    [
+                                        self.user_embeddings[id_member]
+                                        for id_member in thread['members']
+                                    ] + [
+                                        self.post_embeddings[post['idPost']] for post in posts if post['idThread']
+                                    ]
+                                )
 
     def generate_interest_embeddings(self, *args, **kwargs) -> dict:
-        return {interest['_id']or interest['idInterest']:self.generate_embedding(interest['name'])for interest in args[0]}
+        return {interest['_id']or interest['idInterest']:self.generate_interest_embedding(interest)for interest in args[0]}
+
+    def generate_interest_embedding(self, interest: dict, *args, **kwargs) -> np.ndarray:
+        tmp = self.interest_embeddings[interest['_id']]
+        return tmp if tmp else self.generate_embedding(interest['name'])
 
     def generate_key_embeddings(self, *args, **kwargs) -> dict:
-        return {key['_id']or key['idKey']:self.generate_embedding(key['name'])for key in args[0]}
+        return {key['_id']or key['idKey']:self.generate_key_embedding(key)for key in args[0]}
 
+    def generate_key_embedding(self, key: dict, *args, **kwargs) -> np.ndarray:
+        tmp = self.key_embeddings[key['_id']]
+        return tmp if tmp else self.generate_embedding(key['name'])
 
+    def encode(self, obj_type: str, obj: object, *args, **kwargs) -> np.ndarray:
+        match obj_type.lower():
+            case 'key':
+                return self.generate_key_embedding(obj, *args, **kwargs)
+            case 'interest':
+                return self.generate_interest_embedding(obj, *args, **kwargs)
+            case 'user':
+                return self.generate_user_embedding(obj, *args, **kwargs)
+            case 'post':
+                return self.generate_post_embedding(obj, *args, **kwargs)
+            case 'thread':
+                return self.generate_thread_embedding(obj, *args, **kwargs)
+            case 'keys':
+                return self.generate_key_embeddings(obj, *args, **kwargs)
+            case 'interests':
+                return self.generate_interest_embeddings(obj, *args, **kwargs)
+            case 'users':
+                return self.generate_user_embeddings(obj, *args, **kwargs)
+            case 'posts':
+                return self.generate_post_embeddings(obj, *args, **kwargs)
+            case 'threads':
+                return self.generate_thread_embeddings(obj, *args, **kwargs)
+            case _:
+                return self.generate_embedding(obj)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # ====================================================================================================================
 
     def recommend_users(self, id_user, top_n=10):
         """Recommande des utilisateurs similaires à un utilisateur donné en utilisant les embeddings."""

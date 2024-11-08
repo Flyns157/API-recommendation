@@ -189,11 +189,9 @@ class MC_engine(recommender_engine):
 # =====================================================================================================================
 from .embedding import watif_embedder
 class EM_engine(recommender_engine):
-    def __init__(self, db: Database, user_embeddings_path='user_embeddings.npy', post_embeddings_path='post_embeddings.npy', thread_embeddings_path='thread_embeddings.npy') -> None:
+    def __init__(self, db: Database) -> None:
         super().__init__(db)
-        self.embedder = watif_embedder(user_embeddings_path = user_embeddings_path,
-                                        post_embeddings_path = post_embeddings_path,
-                                        thread_embeddings_path = thread_embeddings_path)
+        self.embedder = watif_embedder()
 
     def _get_embedding(self, entity_type, entity_id):
         """
@@ -208,7 +206,9 @@ class EM_engine(recommender_engine):
         """
         collection = self.db.mongo_db[entity_type]
         entity = collection.find_one({"_id": entity_id}, {"embedding": 1})
-        return np.array(entity["embedding"]) if entity and "embedding" in entity else None
+        if entity and "embedding" in entity:
+            return np.array(entity["embedding"])
+        self.embedder.encode(entity_type, entity)
 
     def recommend_users(self, id_user, top_n=50):
         """
