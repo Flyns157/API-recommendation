@@ -109,7 +109,7 @@ class MC_engine(recommender_engine):
             Recommends threads to join based on shared memberships and relevant interests.
     """
 
-    def recommend_users(self, user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5) -> list[str]:
+    def recommend_users(self, user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5, limit: int = 10) -> list[str]:
         """
         Recommends users to follow based on common followers and shared interests.
 
@@ -121,6 +121,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended user IDs, sorted by relevance.
         """
+        if not np.isclose(follow_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments follow_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:INTERESTED_IN]-(u2:User)
@@ -131,11 +133,11 @@ class MC_engine(recommender_engine):
                 RETURN u2.id_user AS user_id,
                        ($follow_weight * common_follows + $interest_weight * common_interests) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight)
+                LIMIT $limit
+            """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight, limit=limit)
             return [record["user_id"] for record in scores]
 
-    def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3) -> list[str]:
+    def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3, limit: int = 10) -> list[str]:
         """
         Recommends posts based on shared interests and user interactions.
 
@@ -147,6 +149,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended post IDs, sorted by relevance.
         """
+        if not np.isclose(interaction_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments interaction_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(p:Post)
@@ -156,11 +160,11 @@ class MC_engine(recommender_engine):
                 RETURN p.id_post AS post_id,
                        ($interest_weight * interest_score + $interaction_weight * interaction_score) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight)
+                LIMIT $limit
+            """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight, limit=limit)
             return [record["post_id"] for record in scores]
 
-    def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4) -> list[str]:
+    def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4, limit: int = 10) -> list[str]:
         """
         Recommends threads to join based on shared memberships and user interests.
 
@@ -172,6 +176,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended thread IDs, sorted by relevance.
         """
+        if not np.isclose(member_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments member_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:User)
@@ -181,19 +187,19 @@ class MC_engine(recommender_engine):
                 RETURN t.id_thread AS thread_id,
                        ($member_weight * member_score + $interest_weight * interest_score) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight)
+                LIMIT $limit
+            """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight, limit=limit)
             return [record["thread_id"] for record in scores]
 
 # Mattéo - embedding
 # =====================================================================================================================
-from .embedding import watif_embedder
+from .embedding import MC_embedder
 class EM_engine(recommender_engine):
     def __init__(self, db: Database) -> None:
         super().__init__(db)
-        self.embedder = watif_embedder()
+        self.embedder = MC_embedder(db)
 
-    def _get_embedding(self, entity_type, entity_id):
+    def _get_embedding(self, entity_type: str, entity_id: int |str | bytes) -> np.ndarray:
         """
         Retrieve the embedding vector for a given entity from MongoDB.
         
@@ -204,11 +210,7 @@ class EM_engine(recommender_engine):
         Returns:
             np.ndarray: The embedding vector for the entity.
         """
-        collection = self.db.mongo_db[entity_type]
-        entity = collection.find_one({"_id": entity_id}, {"embedding": 1})
-        if entity and "embedding" in entity:
-            return np.array(entity["embedding"])
-        self.embedder.encode(entity_type, entity)
+        self.embedder.encode(entity_type, entity_id)
 
     def recommend_users(self, id_user, top_n=50):
         """
@@ -351,7 +353,7 @@ class JA_engine(recommender_engine):
             >>> recommender.recommend_users(123, follow_weight=0.5, intrest_weight=0.5)
             [456, 789, 1011]
         """
-        if follow_weight + intrest_weight != 1.0:
+        if not np.isclose(follow_weight + intrest_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(

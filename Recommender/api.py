@@ -44,6 +44,7 @@ def recommend_users():
         user_id (str): The ID of the user requesting recommendations.
         follow_weight (float, optional): The weight given to mutual followers in scoring, default is 0.5.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.5.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended user IDs or an error message.
@@ -55,12 +56,13 @@ def recommend_users():
     user_id = request.args.get('user_id')
     follow_weight = float(request.args.get('follow_weight', 0.5))
     interest_weight = float(request.args.get('interest_weight', 0.5))
+    limit = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = mc_recommender.recommend_users(user_id, follow_weight, interest_weight)
+        recommendations = mc_recommender.recommend_users(user_id, follow_weight, interest_weight, limit)
         return jsonify({"recommended_users": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_users: {e}")
@@ -76,6 +78,7 @@ def recommend_posts():
         user_id (str): The ID of the user requesting recommendations.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.7.
         interaction_weight (float, optional): The weight given to user interactions (likes, comments) in scoring, default is 0.3.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended post IDs or an error message.
@@ -87,12 +90,13 @@ def recommend_posts():
     user_id = request.args.get('user_id')
     interest_weight = float(request.args.get('interest_weight', 0.7))
     interaction_weight = float(request.args.get('interaction_weight', 0.3))
+    limit = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = mc_recommender.recommend_posts(user_id, interest_weight, interaction_weight)
+        recommendations = mc_recommender.recommend_posts(user_id, interest_weight, interaction_weight, limit)
         return jsonify({"recommended_posts": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_posts: {e}")
@@ -108,6 +112,7 @@ def recommend_threads():
         user_id (str): The ID of the user requesting recommendations.
         member_weight (float, optional): The weight given to shared memberships in scoring, default is 0.6.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.4.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended thread IDs or an error message.
@@ -119,12 +124,13 @@ def recommend_threads():
     user_id = request.args.get('user_id')
     member_weight = float(request.args.get('member_weight', 0.6))
     interest_weight = float(request.args.get('interest_weight', 0.4))
+    limit = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = mc_recommender.recommend_threads(user_id, member_weight, interest_weight)
+        recommendations = mc_recommender.recommend_threads(user_id, member_weight, interest_weight, limit)
         return jsonify({"recommended_threads": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_threads: {e}")
@@ -145,6 +151,7 @@ def recommend_users():
         user_id (str): The ID of the user requesting recommendations.
         follow_weight (float, optional): The weight given to mutual followers in scoring, default is 0.5.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.5.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended user IDs or an error message.
@@ -154,7 +161,7 @@ def recommend_users():
             500: Server error, failed to generate recommendations.
     """
     user_id = request.args.get('user_id')
-    top_n = int(request.args.get('top_n', 15))
+    top_n = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
@@ -176,6 +183,7 @@ def recommend_posts():
         user_id (str): The ID of the user requesting recommendations.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.7.
         interaction_weight (float, optional): The weight given to user interactions (likes, comments) in scoring, default is 0.3.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended post IDs or an error message.
@@ -185,7 +193,7 @@ def recommend_posts():
             500: Server error, failed to generate recommendations.
     """
     user_id = request.args.get('user_id')
-    top_n = int(request.args.get('top_n', 15))
+    top_n = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
@@ -207,6 +215,7 @@ def recommend_threads():
         user_id (str): The ID of the user requesting recommendations.
         member_weight (float, optional): The weight given to shared memberships in scoring, default is 0.6.
         interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.4.
+        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended thread IDs or an error message.
@@ -216,7 +225,7 @@ def recommend_threads():
             500: Server error, failed to generate recommendations.
     """
     user_id = request.args.get('user_id')
-    top_n = int(request.args.get('top_n', 15))
+    top_n = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
