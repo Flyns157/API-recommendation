@@ -38,43 +38,43 @@ class integrated_embedder(embedder):
 
 
 class watif_embedder(object):
-    def generate_user_embeddings(self, *args, **kwargs) -> dict:
+    def get_user_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_post_embeddings(self, *args, **kwargs) -> dict:
+    def get_post_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_thread_embeddings(self, *args, **kwargs) -> dict:
+    def get_thread_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_interest_embeddings(self, *args, **kwargs) -> dict:
+    def get_interest_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_key_embeddings(self, *args, **kwargs) -> dict:
+    def get_key_embeddings(self, *args, **kwargs) -> dict:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_user_embedding(self, id_user: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_user_embedding(self, id_user: str | int | bytes, *args, **kwargs) -> np.ndarray:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_post_embedding(self, id_post: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_post_embedding(self, id_post: str | int | bytes, *args, **kwargs) -> np.ndarray:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_thread_embedding(self, id_thread: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_thread_embedding(self, id_thread: str | int | bytes, *args, **kwargs) -> np.ndarray:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
-    def generate_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
         raise NotImplementedError(
             'Must be implemented in subclass / child class.')
 
@@ -90,7 +90,7 @@ class watif_integrated_embedder(integrated_embedder, watif_embedder):pass
 
 
 class MC_embedder(watif_integrated_embedder):
-    def generate_user_embedding(self, id_user: str | int | bytes, follow_weight: float = 0.4, interest_weight: float = 0.4, description_weight: float = 0.2, *args, **kwargs) -> np.ndarray:
+    def get_user_embedding(self, id_user: str | int | bytes, follow_weight: float = 0.4, interest_weight: float = 0.4, description_weight: float = 0.2, *args, **kwargs) -> np.ndarray:
         entity = self.get_embedding('users', id_user)
         if entity: return entity["embedding"]
         
@@ -100,19 +100,19 @@ class MC_embedder(watif_integrated_embedder):
         user = self.db.mongo_db['users'].find_one({"_id": id_user})
         return Utils.array_avg(
             Utils.array_avg(
-                self.generate_interest_embedding(id_interest, *args, **kwargs)
+                self.get_interest_embedding(id_interest, *args, **kwargs)
                 for id_interest in user['interests']
             ),
             self.model.encode(
                 user['description'], *args, **kwargs
             ) * description_weight,
             Utils.array_avg(
-                self.generate_user_embedding(id_user, *args, **kwargs)
+                self.get_user_embedding(id_user, *args, **kwargs)
                 for id_user in user['follow']
             ) * follow_weight
         )
 
-    def generate_post_embedding(self, id_post: str | int | bytes, key_weight: float = 0.35, title_weight: float = 0.35, content_weight: float = 0.2, author_weight: float = 0.1, *args, **kwargs) -> np.ndarray:
+    def get_post_embedding(self, id_post: str | int | bytes, key_weight: float = 0.35, title_weight: float = 0.35, content_weight: float = 0.2, author_weight: float = 0.1, *args, **kwargs) -> np.ndarray:
         entity = self.get_embedding('posts', id_post)
         if entity: return entity["embedding"]
         
@@ -122,7 +122,7 @@ class MC_embedder(watif_integrated_embedder):
         post = self.db.mongo_db['posts'].find_one({"_id": id_post})
         return Utils.array_avg(
             Utils.array_avg(
-                self.generate_key_embedding(id_key, *args, **kwargs)
+                self.get_key_embedding(id_key, *args, **kwargs)
                 for id_key in post['keys']
             ) * key_weight,
             self.model.encode(
@@ -135,13 +135,13 @@ class MC_embedder(watif_integrated_embedder):
                 prompt = 'Content:\n',
                 *args, **kwargs
             ) * content_weight,
-            self.generate_user_embedding(
+            self.get_user_embedding(
                 post['id_author'],
                 *args, **kwargs
             ) * author_weight
         )
 
-    def generate_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
+    def get_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
         entity = self.get_embedding('threads', id_thread)
         if entity: return entity["embedding"]
         
@@ -150,7 +150,7 @@ class MC_embedder(watif_integrated_embedder):
         
         thread = self.db.mongo_db['threads'].find_one({"_id": id_thread})
         return Utils.array_avg(
-            self.generate_user_embedding(
+            self.get_user_embedding(
                 thread['id_author'],
                 *args, **kwargs
             ) * author_weight,
@@ -160,14 +160,14 @@ class MC_embedder(watif_integrated_embedder):
                 *args, **kwargs
             ),
             Utils.array_avg(
-                self.generate_user_embedding(
+                self.get_user_embedding(
                     id_member,
                     *args, **kwargs
                 )
                 for id_member in thread['members']
             ) * member_weight,
             Utils.array_avg(
-                self.generate_post_embedding(
+                self.get_post_embedding(
                     post['idPost'],
                     *args, **kwargs
                 )
@@ -175,37 +175,37 @@ class MC_embedder(watif_integrated_embedder):
             ) * post_weight
         )
 
-    def generate_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
         entity = self.get_embedding('keys', id_key)
         return entity if entity else self.model.encode(entity['name'], *args, **kwargs)
 
-    def generate_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
+    def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         entity = self.get_embedding('interest', id_interest)
         return entity if entity else self.model.encode(entity['name'], *args, **kwargs)
 
-    def generate_user_embeddings(self, *args, **kwargs) -> dict:
+    def get_user_embeddings(self, *args, **kwargs) -> dict:
         return {user:
-                self.generate_user_embeddings(user, *args, **kwargs)
+                self.get_user_embeddings(user, *args, **kwargs)
                 for user in self.db.mongo_db['users'].find(projection={'_id': 1})}
 
-    def generate_post_embeddings(self, *args, **kwargs) -> dict:
+    def get_post_embeddings(self, *args, **kwargs) -> dict:
         return {post:
-                self.generate_post_embedding(post, *args, **kwargs)
+                self.get_post_embedding(post, *args, **kwargs)
                 for post in self.db.mongo_db['posts'].find(projection={'_id': 1})}
 
-    def generate_thread_embeddings(self, *args, **kwargs) -> dict:
+    def get_thread_embeddings(self, *args, **kwargs) -> dict:
         return {post:
-                self.generate_post_embedding(post, *args, **kwargs)
+                self.get_post_embedding(post, *args, **kwargs)
                 for post in self.db.mongo_db['threads'].find(projection={'_id': 1})}
 
-    def generate_interest_embeddings(self, *args, **kwargs) -> dict:
+    def get_interest_embeddings(self, *args, **kwargs) -> dict:
         return {interest:
-                self.generate_interest_embedding(interest, *args, **kwargs)
+                self.get_interest_embedding(interest, *args, **kwargs)
                 for interest in self.db.mongo_db['interests'].find(projection={'_id': 1})}
 
-    def generate_key_embeddings(self, *args, **kwargs) -> dict:
+    def get_key_embeddings(self, *args, **kwargs) -> dict:
         return {key:
-                self.generate_key_embedding(key, *args, **kwargs)
+                self.get_key_embedding(key, *args, **kwargs)
                 for key in self.db.mongo_db['keys'].find(projection={'_id': 1})}
 
     def get_embedding(self, entity_type: str, entity_id: str | int | bytes) -> np.ndarray | None:
@@ -215,24 +215,24 @@ class MC_embedder(watif_integrated_embedder):
     def encode(self, entity_type: str, entity_id: str | int | bytes, show_progress_bar: bool = True, *args, **kwargs) -> np.ndarray:
         match entity_type.lower():
             case 'key':
-                return self.generate_key_embedding(entity_id, *args, **kwargs)
+                return self.get_key_embedding(entity_id, *args, **kwargs)
             case 'interest':
-                return self.generate_interest_embedding(entity_id, *args, **kwargs)
+                return self.get_interest_embedding(entity_id, *args, **kwargs)
             case 'user':
-                return self.generate_user_embedding(entity_id, *args, **kwargs)
+                return self.get_user_embedding(entity_id, *args, **kwargs)
             case 'post':
-                return self.generate_post_embedding(entity_id, *args, **kwargs)
+                return self.get_post_embedding(entity_id, *args, **kwargs)
             case 'thread':
-                return self.generate_thread_embedding(entity_id, *args, **kwargs)
+                return self.get_thread_embedding(entity_id, *args, **kwargs)
             case 'keys':
-                return self.generate_key_embeddings(*args, **kwargs)
+                return self.get_key_embeddings(*args, **kwargs)
             case 'interests':
-                return self.generate_interest_embeddings(*args, **kwargs)
+                return self.get_interest_embeddings(*args, **kwargs)
             case 'users':
-                return self.generate_user_embeddings(*args, **kwargs)
+                return self.get_user_embeddings(*args, **kwargs)
             case 'posts':
-                return self.generate_post_embeddings(*args, **kwargs)
+                return self.get_post_embeddings(*args, **kwargs)
             case 'threads':
-                return self.generate_thread_embeddings(*args, **kwargs)
+                return self.get_thread_embeddings(*args, **kwargs)
             case _:
                 return self.model.encode(entity_id, show_progress_bar=show_progress_bar, *args, **kwargs)
