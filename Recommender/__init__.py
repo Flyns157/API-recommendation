@@ -109,6 +109,6 @@ class RecommendationAPI(Flask):
         self.jwt.init_app(self)
         
         if sync:
-            self.db.sync.sync_all()
+            self.db.sync.sync_all(erase_data=True)
 
         return super().run(host=host, port=port, debug=mode.lower() in 'debug', load_dotenv=load_dotenv, **options)

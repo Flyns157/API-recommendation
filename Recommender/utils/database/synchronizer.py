@@ -2,6 +2,10 @@
 
 from pymongo.database import Database as MongoDatabase
 from neo4j import Driver as Neo4jDriver
+import logging
+
+
+logging.basicConfig(level=logging.INFO)
 
 class Synchronizer:
     def __init__(self, mongo_db: MongoDatabase = None, neo4j_driver: Neo4jDriver = None) -> None:
@@ -30,29 +34,32 @@ class Synchronizer:
         with self.neo4j_driver.session() as session:
             # Create constraints for unique IDs
             constraints = [
-                "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id_user IS UNIQUE",
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.idUser IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (p:Post) REQUIRE p.idPost IS UNIQUE",
-                "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Thread) REQUIRE t.id_thread IS UNIQUE",
-                "CREATE CONSTRAINT IF NOT EXISTS FOR (k:Key) REQUIRE k.id_key IS UNIQUE",
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (t:Thread) REQUIRE t.idThread IS UNIQUE",
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (k:Key) REQUIRE k.idKey IS UNIQUE",
                 "CREATE CONSTRAINT IF NOT EXISTS FOR (r:Role) REQUIRE r.name IS UNIQUE",
-                "CREATE CONSTRAINT IF NOT EXISTS FOR (i:Interest) REQUIRE i.id_interest IS UNIQUE"
+                "CREATE CONSTRAINT IF NOT EXISTS FOR (i:Interest) REQUIRE i.idInterest IS UNIQUE"
             ]
             for constraint in constraints:
                 session.run(constraint)
+            logging.info("Constraints created successfully.")
+
+    def _get_properties(self, entity, exclude_keys):
+        return {k: v for k, v in entity.items() if k not in exclude_keys}
 
     def sync_users(self):
         """Synchronize users from MongoDB to Neo4j."""
-        users = self.mongo_db.users.find()
+        users = self.mongo_db['users'].find()
         
         with self.neo4j_driver.session() as session:
             for user in users:
                 # Create user node
-                create_user = """
-                MERGE (u:User {idUser: $id_user})
-                SET u += $properties
-                """
-                properties = {k: v for k, v in user.items() if k not in ['_id', 'id_user', 'follow', 'blocked', 'interests', 'role']}
-                session.run(create_user, id_user=str(user['_id']), properties=properties)
+                properties = self._get_properties(user, ['_id', 'id_user', 'follow', 'blocked', 'interests', 'role'])
+                session.run("""
+                    MERGE (u:User {idUser: $id_user})
+                    SET u += $properties
+                """, id_user=str(user['_id']), properties=properties)
 
                 session.run("""
                     MATCH (u:User {idUser: $user_id})
@@ -85,19 +92,20 @@ class Synchronizer:
                         MERGE (u)-[:INTERESTED_IN]->(k)
                         """, user_id=str(user['_id']), id_key=interest_id)
 
+            logging.info("User synchronization completed.")
+
     def sync_roles(self):
         """Synchronize roles from MongoDB to Neo4j."""
-        roles = self.mongo_db.roles.find()
+        roles = self.mongo_db['roles'].find()
         
         with self.neo4j_driver.session() as session:
             for role in roles:
                 # Create role node
-                create_role = """
-                MERGE (r:Role {name: $name})
-                SET r += $properties
-                """
-                properties = {k: v for k, v in role.items() if k not in ['_id', 'name', 'extend']}
-                session.run(create_role, name=role['name'], properties=properties)
+                properties = self._get_properties(role, ['_id', 'name', 'extend'])
+                session.run("""
+                    MERGE (r:Role {name: $name})
+                    SET r += $properties
+                """, name=role['name'], properties=properties)
 
                 # Create extend relationships
                 if 'extend' in role:
@@ -108,19 +116,20 @@ class Synchronizer:
                         MERGE (r1)-[:EXTENDS]->(r2)
                         """, role_name=role['name'], extended_name=extended_role)
 
+            logging.info("Role synchronization completed.")
+
     def sync_threads(self):
         """Synchronize threads from MongoDB to Neo4j."""
-        threads = self.mongo_db.threads.find()
+        threads = self.mongo_db['threads'].find()
         
         with self.neo4j_driver.session() as session:
             for thread in threads:
                 # Create thread node
-                create_thread = """
-                MERGE (t:Thread {idThread: $id_thread})
-                SET t += $properties
-                """
-                properties = {k: v for k, v in thread.items() if k not in ['_id', 'id_thread', 'members', 'id_owner', 'admins']}
-                session.run(create_thread, id_thread=str(thread['_id']), properties=properties)
+                properties = self._get_properties(thread, ['_id', 'id_thread', 'members', 'id_owner', 'admins'])
+                session.run("""
+                    MERGE (t:Thread {idThread: $id_thread})
+                    SET t += $properties
+                """, id_thread=str(thread['_id']), properties=properties)
 
                 # Create relationships
                 # Owner relationship
@@ -146,19 +155,20 @@ class Synchronizer:
                     MERGE (u)-[:ADMIN_OF]->(t)
                     """, admin_id=admin_id, id_thread=str(thread['_id']))
 
+            logging.info("Thread synchronization completed.")
+
     def sync_posts(self):
         """Synchronize posts from MongoDB to Neo4j."""
-        posts = self.mongo_db.posts.find()
+        posts = self.mongo_db['posts'].find()
         
         with self.neo4j_driver.session() as session:
             for post in posts:
                 # Create post node
-                create_post = """
-                MERGE (p:Post {idPost: $idPost})
-                SET p += $properties
-                """
-                properties = {k: v for k, v in post.items() if k not in ['_id', 'idPost', 'id_thread', 'id_author', 'keys', 'likes', 'comments']}
-                session.run(create_post, idPost=str(post['_id']), properties=properties)
+                properties = self._get_properties(post, ['_id', 'idPost', 'id_thread', 'id_author', 'keys', 'likes', 'comments'])
+                session.run("""
+                    MERGE (p:Post {idPost: $idPost})
+                    SET p += $properties
+                """, idPost=str(post['_id']), properties=properties)
 
                 # Create relationships
                 # Author relationship
@@ -199,33 +209,37 @@ class Synchronizer:
                     MERGE (u)-[:COMMENTED_ON]->(p)
                     """, id_commenter=id_commenter, id_post=str(post['_id']))
 
+            logging.info("Post synchronization completed.")
+
     def sync_keys(self):
         """Synchronize keys from MongoDB to Neo4j."""
-        keys = self.mongo_db.keys.find()
+        keys = self.mongo_db['keys'].find()
         
         with self.neo4j_driver.session() as session:
             for key in keys:
                 # Create key node
-                create_key = """
-                MERGE (k:Key {idKey: $id_key})
-                SET k += $properties
-                """
-                properties = {k: v for k, v in key.items() if k not in ['_id', 'id_key']}
-                session.run(create_key, id_key=str(key['_id']), properties=properties)
+                properties = self._get_properties(key, ['_id', 'id_key'])
+                session.run("""
+                    MERGE (k:Key {idKey: $id_key})
+                    SET k += $properties
+                """, id_key=str(key['_id']), properties=properties)
+
+            logging.info("Key synchronization completed.")
 
     def sync_interests(self):
         """Synchronize interests from MongoDB to Neo4j."""
-        interests = self.mongo_db.interests.find()
+        interests = self.mongo_db['interests'].find()
         
         with self.neo4j_driver.session() as session:
             for interest in interests:
                 # Create interest node
-                create_interest = """
-                MERGE (i:Interest {idInterest: $id_interest})
-                SET i += $properties
-                """
-                properties = {k: v for k, v in interest.items() if k not in ['_id', 'id_interest']}
-                session.run(create_interest, id_interest=str(interest['_id']), properties=properties)
+                properties = self._get_properties(interest, ['_id', 'id_interest'])
+                session.run("""
+                    MERGE (i:Interest {idInterest: $id_interest})
+                    SET i += $properties
+                """, id_interest=str(interest['_id']), properties=properties)
+
+            logging.info("Interest synchronization completed.")
 
     def erase_all_data(self):
         """
@@ -233,6 +247,7 @@ class Synchronizer:
         """
         with self.neo4j_driver.session() as session:
             session.run("MATCH (n) DETACH DELETE n")
+        logging.info("All data erased from Neo4j database.")
 
     def synchronize(self):
         """Run the synchronization process for all entities."""
@@ -243,17 +258,26 @@ class Synchronizer:
         self.sync_users()
         self.sync_threads()
         self.sync_posts()
-    
-    def sync_all(self) -> None:
+
+    def sync_all(self, erase_data: bool = False) -> None:
         """
         Synchronizes data across all collections between MongoDB and Neo4j.
 
         This method calls `sync_posts`, `sync_roles`, `sync_threads`, and `sync_users`.
         """
         print("Data synchronization between MongoDB and Neo4j databases ", end='')
-        try:
+        if erase_data:
             self.erase_all_data()
-            self.synchronize()
+        self._create_constraints()
+        try:
+            self.sync_roles()
+            self.sync_interests()
+            self.sync_keys()
+            self.sync_users()
+            self.sync_threads()
+            self.sync_posts()
             print("[SUCCESS]")
+            logging.info("Data synchronization between MongoDB and Neo4j completed successfully.")
         except Exception as e:
             print(f"[FAILED]\n - {e}")
+            logging.error(f"Data synchronization failed: {e}")
