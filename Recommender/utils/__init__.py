@@ -82,3 +82,11 @@ class Utils:
         average_matrix = sum_matrix / len(matrices)
         
         return average_matrix
+
+    @classmethod
+    def isiterable(cls, obj) -> bool:
+        try:
+            iter(obj)
+            return True
+        except:
+            return False
