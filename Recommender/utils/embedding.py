@@ -39,10 +39,12 @@ Requirements:
 """
 
 from sentence_transformers import SentenceTransformer
+from threading import Lock, local, current_thread
 from datetime import datetime, timedelta
 from contextlib import contextmanager
-from threading import Lock, local
+from time import perf_counter
 import numpy as np
+import logging
 import os
 
 from .database import Database
@@ -228,19 +230,37 @@ class MC_embedder(watif_integrated_embedder):
         encode(entity_type, entity_id, show_progress_bar=True, *args, **kwargs):
             Encodes an entity based on its type and ID, with configurable arguments and weights for generating embeddings.
     """
-    def __init__(self, db: Database, update_time_hours: int = 2, model: str = 'all-MiniLM-L6-v2', *args, **kwargs) -> None:
+    def __init__(self, db: Database, update_time_hours: int = 2, model: str = 'all-MiniLM-L6-v2', logger: logging.Logger = None, *args, **kwargs) -> None:
+        # TODO : Add docstring
         super().__init__(db, model, *args, **kwargs)
         self.update_time = timedelta(hours=update_time_hours)
         # Thread-local storage for tracking processing users
         self._thread_local = local()
         # Lock for database operations
         self._db_lock = Lock()
+        
+        # Setup logging
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                '%(asctime)s [%(threadName)s] %(levelname)s - %(message)s'
+            )
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
+            self.logger.setLevel(logging.INFO)
+        else:
+            self.logger = logger
+            
+        self.logger.info("Initialized MC_embedder with model: %s", model)
 
     @property
     def _processing_users(self):
         """Thread-local set of users being processed."""
         if not hasattr(self._thread_local, 'processing_users'):
             self._thread_local.processing_users = set()
+            self.logger.debug("[Thread %s] Initialized processing_users set", 
+                            current_thread().name)
         return self._thread_local.processing_users
 
     @contextmanager
@@ -254,14 +274,24 @@ class MC_embedder(watif_integrated_embedder):
         Yields:
             bool: True if this is a cyclic reference, False otherwise
         """
+        thread_name = current_thread().name
         is_cycle = id_user in self._processing_users
-        if not is_cycle:
+        
+        if is_cycle:
+            self.logger.debug("[Thread %s] Detected circular dependency for user %s", 
+                            thread_name, id_user)
+        else:
+            self.logger.debug("[Thread %s] Started processing user %s", 
+                            thread_name, id_user)
             self._processing_users.add(id_user)
+            
         try:
             yield is_cycle
         finally:
             if not is_cycle:
                 self._processing_users.remove(id_user)
+                self.logger.debug("[Thread %s] Finished processing user %s", 
+                                thread_name, id_user)
 
     def get_user_embedding( self, id_user: str | int | bytes, follow_weight: float = 0.4, 
                             interest_weight: float = 0.4, description_weight: float = 0.2, 
@@ -285,56 +315,89 @@ class MC_embedder(watif_integrated_embedder):
         Raises:
             ValueError: If the sum of weights is not equal to 1 or if user doesn't exist.
         """
-        # Check if user exists and get current embedding
-        with self._db_lock:
-            entity = self._get_embedding('users', id_user)
-            if not entity:
-                raise ValueError(f"User {id_user} doesn't exist: impossible to generate an embedding")
+        start_time = perf_counter()
+        thread_name = current_thread().name
+        
+        self.logger.info("[Thread %s] Starting embedding generation for user %s", 
+                        thread_name, id_user)
+        
+        try:
+            # Check if user exists and get current embedding
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Acquiring database lock for user %s", 
+                                thread_name, id_user)
+                entity = self._get_embedding('users', id_user)
+                if not entity:
+                    self.logger.error("[Thread %s] User %s not found in database", 
+                                    thread_name, id_user)
+                    raise ValueError(f"User {id_user} doesn't exist: impossible to generate an embedding")
+                
+                # Return cached embedding if valid
+                if "embedding" in entity:
+                    embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                    if (datetime.now() - embed_date) < self.update_time:
+                        self.logger.info("[Thread %s] Retrieved valid cached embedding for user %s", 
+                                        thread_name, id_user)
+                        return np.array(entity["embedding"]['vector'])
+                    else:
+                        self.logger.debug("[Thread %s] Cached embedding expired for user %s", 
+                                        thread_name, id_user)
             
-            # Return cached embedding if it exists and is fresh
-            if "embedding" in entity:
-                embed_date = datetime.fromisoformat(entity['embedding']['date'])
-                if (datetime.now() - embed_date) < self.update_time:
-                    return np.array(entity["embedding"]['vector'])
-        
-        # Validate weights
-        if not np.isclose(follow_weight + interest_weight + description_weight, 1.0, rtol=1e-09, atol=1e-09):
-            raise ValueError('The sum of arguments follow_weight, interest_weight and description_weight must be 1.0')
-        
-        # Get user data
-        with self._db_lock:
-            user = self.db.mongo_db['users'].find_one({"_id": id_user})
-        
-        # Process user embedding with cycle detection
-        with self._track_user_processing(id_user) as is_cycle:
-            if is_cycle:
-                # If we detect a cycle, return a base embedding without follow relationships
-                return self._generate_base_user_embedding(
-                    user, 
-                    interest_weight/(interest_weight + description_weight),
-                    description_weight/(interest_weight + description_weight),
+            # Validate weights
+            if not np.isclose(follow_weight + interest_weight + description_weight, 1.0, rtol=1e-09, atol=1e-09):
+                self.logger.error("[Thread %s] Invalid weights for user %s: follow=%.2f, interest=%.2f, description=%.2f", 
+                                thread_name, id_user, follow_weight, interest_weight, description_weight)
+                raise ValueError('The sum of arguments follow_weight, interest_weight and description_weight must be 1.0')
+            
+            # Get user data
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Retrieving user data for %s", 
+                                thread_name, id_user)
+                user = self.db.mongo_db['users'].find_one({"_id": id_user})
+            
+            # Process user embedding with cycle detection
+            with self._track_user_processing(id_user) as is_cycle:
+                if is_cycle:
+                    self.logger.info("[Thread %s] Generating base embedding for user %s due to circular dependency", 
+                                    thread_name, id_user)
+                    return self._generate_base_user_embedding(
+                        user, 
+                        interest_weight/(interest_weight + description_weight),
+                        description_weight/(interest_weight + description_weight),
+                        *args, **kwargs
+                    )
+                
+                self.logger.debug("[Thread %s] Generating full embedding for user %s", 
+                                thread_name, id_user)
+                embedded_user = self._generate_full_user_embedding(
+                    user, follow_weight, interest_weight, description_weight,
                     *args, **kwargs
                 )
-            
-            # Generate full embedding including follow relationships
-            embedded_user = self._generate_full_user_embedding(
-                user, follow_weight, interest_weight, description_weight,
-                *args, **kwargs
-            )
-            
-            # Store the embedding in the database
-            with self._db_lock:
-                self.db.mongo_db['users'].update_one(
-                    {'_id': id_user},
-                    {'$set': {
-                        'embedding': {
-                            'date': datetime.now().isoformat(),
-                            'vector': embedded_user.tolist()
-                        }
-                    }}
-                )
-            
-            return embedded_user
+                
+                # Store the embedding
+                with self._db_lock:
+                    self.logger.debug("[Thread %s] Storing new embedding for user %s", 
+                                    thread_name, id_user)
+                    self.db.mongo_db['users'].update_one(
+                        {'_id': id_user},
+                        {'$set': {
+                            'embedding': {
+                                'date': datetime.now().isoformat(),
+                                'vector': embedded_user.tolist()
+                            }
+                        }}
+                    )
+                
+                return embedded_user
+                
+        except Exception as e:
+            self.logger.error("[Thread %s] Error generating embedding for user %s: %s", 
+                            thread_name, id_user, str(e), exc_info=True)
+            raise
+        finally:
+            duration = perf_counter() - start_time
+            self.logger.info(   "[Thread %s] Completed embedding generation for user %s in %.2f seconds", 
+                                thread_name, id_user, duration)
     
     def _generate_base_user_embedding(  self, user: dict, normalized_interest_weight: float,
                                         normalized_description_weight: float, *args, **kwargs) -> np.ndarray:
@@ -352,19 +415,36 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: Base user embedding.
         """
-        return Utils.array_avg(
-            Utils.array_avg(
-                self.get_interest_embedding(
-                    id_interest,
+        thread_name = current_thread().name
+        start_time = perf_counter()
+        
+        self.logger.debug(  "[Thread %s] Generating base embedding for user %s with %d interests", 
+                            thread_name, user['_id'], len(user['interests']))
+        
+        try:
+            result = Utils.array_avg(
+                Utils.array_avg(
+                    self.get_interest_embedding(
+                        id_interest,
+                        *args, **kwargs
+                    )
+                    for id_interest in user['interests']
+                ) * normalized_interest_weight,
+                self.model.encode(
+                    user['description'],
                     *args, **kwargs
-                )
-                for id_interest in user['interests']
-            ) * normalized_interest_weight,
-            self.model.encode(
-                user['description'],
-                *args, **kwargs
-            ) * normalized_description_weight
-        )
+                ) * normalized_description_weight
+            )
+            
+            duration = perf_counter() - start_time
+            self.logger.debug("[Thread %s] Generated base embedding for user %s in %.2f seconds", 
+                            thread_name, user['_id'], duration)
+            return result
+            
+        except Exception as e:
+            self.logger.error("[Thread %s] Error generating base embedding for user %s: %s", 
+                            thread_name, user['_id'], str(e), exc_info=True)
+            raise
     
     def _generate_full_user_embedding(self, user: dict, follow_weight: float,
                                     interest_weight: float, description_weight: float,
@@ -384,29 +464,46 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: Complete user embedding.
         """
-        return Utils.array_avg(
-            Utils.array_avg(
-                self.get_interest_embedding(
-                    id_interest,
+        thread_name = current_thread().name
+        start_time = perf_counter()
+        
+        self.logger.debug(  "[Thread %s] Generating full embedding for user %s with %d interests and %d follows", 
+                            thread_name, user['_id'], len(user['interests']), len(user['follow']))
+        
+        try:
+            result = Utils.array_avg(
+                Utils.array_avg(
+                    self.get_interest_embedding(
+                        id_interest,
+                        *args, **kwargs
+                    )
+                    for id_interest in user['interests']
+                ) * interest_weight,
+                self.model.encode(
+                    user['description'],
                     *args, **kwargs
-                )
-                for id_interest in user['interests']
-            ) * interest_weight,
-            self.model.encode(
-                user['description'],
-                *args, **kwargs
-            ) * description_weight,
-            Utils.array_avg(
-                self.get_user_embedding(
-                    id_follow,
-                    follow_weight=follow_weight,
-                    interest_weight=interest_weight,
-                    description_weight=description_weight,
-                    *args, **kwargs
-                )
-                for id_follow in user['follow']
-            ) * follow_weight
-        )
+                ) * description_weight,
+                Utils.array_avg(
+                    self.get_user_embedding(
+                        id_follow,
+                        follow_weight=follow_weight,
+                        interest_weight=interest_weight,
+                        description_weight=description_weight,
+                        *args, **kwargs
+                    )
+                    for id_follow in user['follow']
+                ) * follow_weight
+            )
+            
+            duration = perf_counter() - start_time
+            self.logger.debug("[Thread %s] Generated full embedding for user %s in %.2f seconds", 
+                            thread_name, user['_id'], duration)
+            return result
+            
+        except Exception as e:
+            self.logger.error("[Thread %s] Error generating full embedding for user %s: %s", 
+                            thread_name, user['_id'], str(e), exc_info=True)
+            raise
 
     def get_post_embedding(self, id_post: str | int | bytes, key_weight: float = 0.35, title_weight: float = 0.35, content_weight: float = 0.2, author_weight: float = 0.1, *args, **kwargs) -> np.ndarray:
         """
