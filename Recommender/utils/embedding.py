@@ -22,7 +22,7 @@ Functions:
     - get_thread_embedding: Generates an embedding for a thread, weighted by attributes like author, members, and related posts.
     - get_key_embedding: Retrieves the embedding for a specific keyword.
     - get_interest_embedding: Retrieves the embedding for a specific interest.
-    - get_embedding: Utility function to get an entity embedding from the database.
+    - _get_embedding: Utility function to get an entity embedding from the database.
 
 Examples:
     # Initialize an MC_embedder with a database instance and model
@@ -38,8 +38,10 @@ Requirements:
 
 """
 
-from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+from datetime import datetime, timedelta
+from contextlib import contextmanager
+from threading import Lock, local
 import numpy as np
 import os
 
@@ -180,7 +182,6 @@ class watif_integrated_embedder(integrated_embedder, watif_embedder):
     pass
 
 
-
 class MC_embedder(watif_integrated_embedder):
     """
     Embedder class responsible for generating and managing embeddings for social media entities such as users, posts, threads, and interests.
@@ -221,16 +222,54 @@ class MC_embedder(watif_integrated_embedder):
         get_key_embeddings(*args, **kwargs):
             Retrieves embeddings for all keys in the database.
 
-        get_embedding(entity_type, entity_id):
+        _get_embedding(entity_type, entity_id):
             Retrieves the embedding for a specific entity from the database.
 
         encode(entity_type, entity_id, show_progress_bar=True, *args, **kwargs):
             Encodes an entity based on its type and ID, with configurable arguments and weights for generating embeddings.
     """
+    def __init__(self, db: Database, update_time_hours: int = 2, model: str = 'all-MiniLM-L6-v2', *args, **kwargs) -> None:
+        super().__init__(db, model, *args, **kwargs)
+        self.update_time = timedelta(hours=update_time_hours)
+        # Thread-local storage for tracking processing users
+        self._thread_local = local()
+        # Lock for database operations
+        self._db_lock = Lock()
 
-    def get_user_embedding(self, id_user: str | int | bytes, follow_weight: float = 0.4, interest_weight: float = 0.4, description_weight: float = 0.2, *args, **kwargs) -> np.ndarray:
+    @property
+    def _processing_users(self):
+        """Thread-local set of users being processed."""
+        if not hasattr(self._thread_local, 'processing_users'):
+            self._thread_local.processing_users = set()
+        return self._thread_local.processing_users
+
+    @contextmanager
+    def _track_user_processing(self, id_user):
         """
-        Generates a weighted user embedding based on interests, followings, and description.
+        Thread-safe context manager for tracking user processing state.
+        
+        Args:
+            id_user: The ID of the user being processed
+            
+        Yields:
+            bool: True if this is a cyclic reference, False otherwise
+        """
+        is_cycle = id_user in self._processing_users
+        if not is_cycle:
+            self._processing_users.add(id_user)
+        try:
+            yield is_cycle
+        finally:
+            if not is_cycle:
+                self._processing_users.remove(id_user)
+
+    def get_user_embedding( self, id_user: str | int | bytes, follow_weight: float = 0.4, 
+                            interest_weight: float = 0.4, description_weight: float = 0.2, 
+                            *args, **kwargs) -> np.ndarray:
+        """
+        Thread-safe method to generate a weighted user embedding based on interests, followings, and description.
+        Handles circular dependencies in the social graph by detecting cycles and falling back
+        to a base embedding when needed.
 
         Args:
             id_user (str | int | bytes): User ID.
@@ -244,26 +283,128 @@ class MC_embedder(watif_integrated_embedder):
             np.ndarray: The generated user embedding as a NumPy array.
         
         Raises:
-            ValueError: If the sum of `follow_weight`, `interest_weight`, and `description_weight` is not equal to 1.
+            ValueError: If the sum of weights is not equal to 1 or if user doesn't exist.
         """
-        entity = self.get_embedding('users', id_user)
-        if "embedding" in entity: return entity["embedding"]
+        # Check if user exists and get current embedding
+        with self._db_lock:
+            entity = self._get_embedding('users', id_user)
+            if not entity:
+                raise ValueError(f"User {id_user} doesn't exist: impossible to generate an embedding")
+            
+            # Return cached embedding if it exists and is fresh
+            if "embedding" in entity:
+                embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                if (datetime.now() - embed_date) < self.update_time:
+                    return np.array(entity["embedding"]['vector'])
         
+        # Validate weights
         if not np.isclose(follow_weight + interest_weight + description_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments follow_weight, interest_weight and description_weight must be 1.0')
         
-        user = self.db.mongo_db['users'].find_one({"_id": id_user})
+        # Get user data
+        with self._db_lock:
+            user = self.db.mongo_db['users'].find_one({"_id": id_user})
+        
+        # Process user embedding with cycle detection
+        with self._track_user_processing(id_user) as is_cycle:
+            if is_cycle:
+                # If we detect a cycle, return a base embedding without follow relationships
+                return self._generate_base_user_embedding(
+                    user, 
+                    interest_weight/(interest_weight + description_weight),
+                    description_weight/(interest_weight + description_weight),
+                    *args, **kwargs
+                )
+            
+            # Generate full embedding including follow relationships
+            embedded_user = self._generate_full_user_embedding(
+                user, follow_weight, interest_weight, description_weight,
+                *args, **kwargs
+            )
+            
+            # Store the embedding in the database
+            with self._db_lock:
+                self.db.mongo_db['users'].update_one(
+                    {'_id': id_user},
+                    {'$set': {
+                        'embedding': {
+                            'date': datetime.now().isoformat(),
+                            'vector': embedded_user.tolist()
+                        }
+                    }}
+                )
+            
+            return embedded_user
+    
+    def _generate_base_user_embedding(  self, user: dict, normalized_interest_weight: float,
+                                        normalized_description_weight: float, *args, **kwargs) -> np.ndarray:
+        """
+        Generates a base user embedding without follow relationships to break circular dependencies.
+        Thread-safe as it doesn't modify shared state.
+        
+        Args:
+            user (dict): User document from database.
+            normalized_interest_weight (float): Adjusted weight for interests.
+            normalized_description_weight (float): Adjusted weight for description.
+            *args: Additional arguments.
+            **kwargs: Additional keyword arguments.
+            
+        Returns:
+            np.ndarray: Base user embedding.
+        """
         return Utils.array_avg(
             Utils.array_avg(
-                self.get_interest_embedding(id_interest, *args, **kwargs)
+                self.get_interest_embedding(
+                    id_interest,
+                    *args, **kwargs
+                )
                 for id_interest in user['interests']
-            ),
+            ) * normalized_interest_weight,
             self.model.encode(
-                user['description'], *args, **kwargs
+                user['description'],
+                *args, **kwargs
+            ) * normalized_description_weight
+        )
+    
+    def _generate_full_user_embedding(self, user: dict, follow_weight: float,
+                                    interest_weight: float, description_weight: float,
+                                    *args, **kwargs) -> np.ndarray:
+        """
+        Generates a complete user embedding including follow relationships.
+        Thread-safe as it doesn't modify shared state.
+        
+        Args:
+            user (dict): User document from database.
+            follow_weight (float): Weight for followings.
+            interest_weight (float): Weight for interests.
+            description_weight (float): Weight for description.
+            *args: Additional arguments.
+            **kwargs: Additional keyword arguments.
+            
+        Returns:
+            np.ndarray: Complete user embedding.
+        """
+        return Utils.array_avg(
+            Utils.array_avg(
+                self.get_interest_embedding(
+                    id_interest,
+                    *args, **kwargs
+                )
+                for id_interest in user['interests']
+            ) * interest_weight,
+            self.model.encode(
+                user['description'],
+                *args, **kwargs
             ) * description_weight,
             Utils.array_avg(
-                self.get_user_embedding(id_user, *args, **kwargs)
-                for id_user in user['follow']
+                self.get_user_embedding(
+                    id_follow,
+                    follow_weight=follow_weight,
+                    interest_weight=interest_weight,
+                    description_weight=description_weight,
+                    *args, **kwargs
+                )
+                for id_follow in user['follow']
             ) * follow_weight
         )
 
@@ -286,14 +427,22 @@ class MC_embedder(watif_integrated_embedder):
         Raises:
             ValueError: If the sum of `key_weight`, `title_weight`, `content_weight`, and `author_weight` is not equal to 1.
         """
-        entity = self.get_embedding('posts', id_post)
-        if "embedding" in entity: return entity["embedding"]
+        entity = self._get_embedding('posts', id_post)
+        
+        if not entity:
+            raise ValueError(f"Post {id_post} doesn't exist: impossible to generate an embedding")
+        
+        # Return cached embedding if it exists and is fresh
+        if "embedding" in entity:
+            embed_date = datetime.fromisoformat(entity['embedding']['date'])
+            if (datetime.now() - embed_date) < self.update_time:
+                return np.array(entity["embedding"]['vector'])
         
         if not np.isclose(key_weight + title_weight + content_weight + author_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments key_weight, title_weight, content_weight and author_weight must be 1.0')
         
         post = self.db.mongo_db['posts'].find_one({"_id": id_post})
-        return Utils.array_avg(
+        embedded_post = Utils.array_avg(
             Utils.array_avg(
                 self.get_key_embedding(id_key, *args, **kwargs)
                 for id_key in post['keys']
@@ -313,6 +462,20 @@ class MC_embedder(watif_integrated_embedder):
                 *args, **kwargs
             ) * author_weight
         )
+        
+        # Store the embedding in the database
+        with self._db_lock:
+            self.db.mongo_db['posts'].update_one(
+                {'_id': id_post},
+                {'$set': {
+                    'embedding': {
+                        'date': datetime.now().isoformat(),
+                        'vector': embedded_post.tolist()
+                    }
+                }}
+            )
+        
+        return embedded_post
 
     def get_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
         """
@@ -333,14 +496,22 @@ class MC_embedder(watif_integrated_embedder):
         Raises:
             ValueError: If the sum of `author_weight`, `name_weight`, `member_weight`, and `post_weight` is not equal to 1.
         """
-        entity = self.get_embedding('threads', id_thread)
-        if "embedding" in entity: return entity["embedding"]
+        entity = self._get_embedding('threads', id_thread)
+        
+        if not entity:
+            raise ValueError(f"Thread {id_thread} doesn't exist: impossible to generate an embedding")
+        
+        # Return cached embedding if it exists and is fresh
+        if "embedding" in entity:
+            embed_date = datetime.fromisoformat(entity['embedding']['date'])
+            if (datetime.now() - embed_date) < self.update_time:
+                return np.array(entity["embedding"]['vector'])
         
         if not np.isclose(author_weight + name_weight + member_weight + post_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments author_weight, name_weight, member_weight and post_weight must be 1.0')
         
         thread = self.db.mongo_db['threads'].find_one({"_id": id_thread})
-        return Utils.array_avg(
+        embedded_thread = Utils.array_avg(
             self.get_user_embedding(
                 thread['id_author'],
                 *args, **kwargs
@@ -365,6 +536,20 @@ class MC_embedder(watif_integrated_embedder):
                 for post in self.db.mongo_db['posts'].find({"id_thread": id_thread})
             ) * post_weight
         )
+        
+        # Store the embedding in the database
+        with self._db_lock:
+            self.db.mongo_db['threads'].update_one(
+                {'_id': id_thread},
+                {'$set': {
+                    'embedding': {
+                        'date': datetime.now().isoformat(),
+                        'vector': embedded_thread.tolist()
+                    }
+                }}
+            )
+        
+        return embedded_thread
 
     def get_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -378,8 +563,32 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: The generated or retrieved key embedding as a NumPy array.
         """
-        entity = self.get_embedding('keys', id_key)
-        return entity["embedding"] if "embedding" in entity else self.model.encode(entity['name'], *args, **kwargs)
+        entity = self._get_embedding('keys', id_key)
+        
+        if not entity:
+            raise ValueError(f"Key {id_key} doesn't exist: impossible to generate an embedding")
+        
+        # Return cached embedding if it exists and is fresh
+        if "embedding" in entity:
+            embed_date = datetime.fromisoformat(entity['embedding']['date'])
+            if (datetime.now() - embed_date) < self.update_time:
+                return np.array(entity["embedding"]['vector'])
+        
+        embedded_key = self.model.encode(entity['name'], *args, **kwargs)
+        
+        # Store the embedding in the database
+        with self._db_lock:
+            self.db.mongo_db['keys'].update_one(
+                {'_id': id_key},
+                {'$set': {
+                    'embedding': {
+                        'date': datetime.now().isoformat(),
+                        'vector': embedded_key.tolist()
+                    }
+                }}
+            )
+        
+        return embedded_key
 
     def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -393,8 +602,32 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: The generated or retrieved interest embedding as a NumPy array.
         """
-        entity = self.get_embedding('interest', id_interest)
-        return entity["embedding"] if "embedding" in entity else self.model.encode(entity['name'], *args, **kwargs)
+        entity = self._get_embedding('interest', id_interest)
+        
+        if not entity:
+            raise ValueError(f"Interest {id_interest} doesn't exist: impossible to generate an embedding")
+        
+        # Return cached embedding if it exists and is fresh
+        if "embedding" in entity:
+            embed_date = datetime.fromisoformat(entity['embedding']['date'])
+            if (datetime.now() - embed_date) < self.update_time:
+                return np.array(entity["embedding"]['vector'])
+        
+        embedded_interest = self.model.encode(entity['name'], *args, **kwargs)
+        
+        # Store the embedding in the database
+        with self._db_lock:
+            self.db.mongo_db['interest'].update_one(
+                {'_id': id_interest},
+                {'$set': {
+                    'embedding': {
+                        'date': datetime.now().isoformat(),
+                        'vector': embedded_interest.tolist()
+                    }
+                }}
+            )
+        
+        return embedded_interest
 
     def get_user_embeddings(self, *args, **kwargs) -> dict:
         """
@@ -471,7 +704,7 @@ class MC_embedder(watif_integrated_embedder):
                 self.get_key_embedding(key, *args, **kwargs)
                 for key in self.db.mongo_db['keys'].find(projection={'_id': 1})}
 
-    def get_embedding(self, entity_type: str, entity_id: str | int | bytes) -> np.ndarray | None:
+    def _get_embedding(self, entity_type: str, entity_id: str | int | bytes) -> np.ndarray | None:
         """
         Retrieves embedding for a specific entity from the database.
 
