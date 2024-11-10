@@ -1,29 +1,43 @@
 # Use an official Python runtime as the base image
 FROM python:3.12.7-slim
 
-# Set the working directory in the container
-WORKDIR /app
-
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Update pip
+# Upgrade pip
 RUN pip install --upgrade pip
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Install curl for healthchecks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for security
+RUN useradd -ms /bin/bash nonroot
+WORKDIR /home/app
+RUN mkdir -p /home/app /var/log/flask-app && \
+    chown -R nonroot:nonroot /home/app /var/log/flask-app && \
+    touch /var/log/flask-app/flask-app.err.log /var/log/flask-app/flask-app.out.log
+
+USER nonroot
+
+# Copy application files
+COPY --chown=nonroot:nonroot ./Recommender ./Recommender
+COPY --chown=nonroot:nonroot .env .
+COPY --chown=nonroot:nonroot requirements.txt .
+COPY --chown=nonroot:nonroot setup.py .
 
 # Set environment variables
 ENV FLASK_APP=Recommender/__main__.py
 ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_ENV=production
+# venv
+ENV VIRTUAL_ENV=/home/app/venv
 
-# Générer une clé secrète pour Flask
-RUN python -c 'import secrets; print(secrets.token_hex())' > secret_key.txt
-RUN echo "SECRET_KEY=$(cat secret_key.txt)" > .env
+# Setup Python virtual environment
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Make port 8000 available to the world outside this container
-EXPOSE 8080
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Use a WSGI server to launch the Flask application
-CMD ["waitress-serve", "--call", "Recommender.api:create_app"]
+# Expose port
+EXPOSE 5000
+
+# Start the application
+CMD ["python", "-m", "flask", "run"]
