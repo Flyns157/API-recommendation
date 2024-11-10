@@ -194,10 +194,11 @@ class MC_engine(recommender_engine):
 # Mattéo - embedding
 # =====================================================================================================================
 from .embedding import MC_embedder
+from .. import logger
 class EM_engine(recommender_engine):
     def __init__(self, db: Database) -> None:
         super().__init__(db)
-        self.embedder = MC_embedder(db)
+        self.embedder = MC_embedder(db, logger=logger)
 
     def _get_embedding(self, entity_type: str, entity_id: int |str | bytes) -> np.ndarray:
         """

@@ -14,7 +14,7 @@ Modules:
 Classes:
     - RecommendationAPI: The main API server class, handling initialization and configuration for the API.
 """
-__version__ = "0.1.2"
+__version__ = "0.1.5"
 
 from flask_limiter.util import get_remote_address
 from flask_jwt_extended import JWTManager
@@ -24,6 +24,10 @@ from flask import Flask, jsonify
 from .config import Config
 import logging
 
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    handlers=[logging.FileHandler('recommender.log'), logging.StreamHandler()])
+logger = logging.getLogger(__name__)
 db = Database()
 
 class RecommendationAPI(Flask):
@@ -53,9 +57,6 @@ class RecommendationAPI(Flask):
         self.config.from_object(Config)
         self.limiter = Limiter(get_remote_address, default_limits=["200 per day", "50 per hour"])
         self.db = db
-        logging.basicConfig(level=logging.INFO,
-                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                            handlers=[logging.FileHandler('gen_serv.log'), logging.StreamHandler()])
         self.logger = logging.getLogger(__name__)
         self.jwt = JWTManager()
         self.mode = 'maintenance'
