@@ -56,7 +56,7 @@ class Utils:
         return components[0] + ''.join(x.title() for x in components[1:])
 
     @classmethod
-    def array_avg(cls, matrices: list[np.ndarray], *args):
+    def array_avg(cls, matrices: list[np.ndarray], *args) -> np.ndarray:
         """
         Calcule la moyenne d'une liste de matrices (numpy.ndarray).
 
