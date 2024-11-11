@@ -242,27 +242,36 @@ class MC_embedder(watif_integrated_embedder):
             *args: Additional arguments.
             **kwargs: Additional keyword arguments.
         """
-        super().__init__(db, model, *args, **kwargs)
-        self.update_time = timedelta(hours=update_time_hours)
-        # Thread-local storage for tracking processing users
-        self._thread_local = local()
-        # Lock for database operations
-        self._db_lock = Lock()
-        
         # Setup logging
-        if logger is None:
-            self.logger = logging.getLogger(__name__)
+        self.logger = logger or self._setup_logger()
+        self.logger.info("Initializing MC_embedder with configuration: model=%s, update_time_hours=%d", model, update_time_hours)
+        
+        try:
+            super().__init__(db, model, *args, **kwargs)
+            self.update_time = timedelta(hours=update_time_hours)
+            # Thread-local storage for tracking processing users
+            self._thread_local = local()
+            # Lock for database operations
+            self._db_lock = Lock()
+            
+            self.logger.info("Successfully initialized MC_embedder instance")
+            self.logger.debug("Database connection established, thread-local storage and locks initialized")
+        except Exception as e:
+            self.logger.error("Failed to initialize MC_embedder: %s", str(e), exc_info=True)
+            raise
+
+    def _setup_logger(self) -> logging.Logger:
+        """Sets up and configures the logger."""
+        logger = logging.getLogger(__name__)
+        if not logger.handlers:
             handler = logging.StreamHandler()
             formatter = logging.Formatter(
                 '%(asctime)s [%(threadName)s] %(levelname)s - %(message)s'
             )
             handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
-            self.logger.setLevel(logging.INFO)
-        else:
-            self.logger = logger
-            
-        self.logger.info("Initialized MC_embedder with model: %s", model)
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+        return logger
 
     @property
     def _processing_users(self):
@@ -285,14 +294,13 @@ class MC_embedder(watif_integrated_embedder):
             bool: True if this is a cyclic reference, False otherwise
         """
         thread_name = current_thread().name
+        start_time = perf_counter()
         is_cycle = id_user in self._processing_users
         
-        if is_cycle:
-            self.logger.debug("[Thread %s] Detected circular dependency for user %s", 
-                            thread_name, id_user)
-        else:
-            self.logger.debug("[Thread %s] Started processing user %s", 
-                            thread_name, id_user)
+        self.logger.debug(  "[Thread %s] Beginning user tracking for %s (cycle detected: %s)", 
+                            thread_name, id_user, is_cycle)
+        
+        if not is_cycle:
             self._processing_users.add(id_user)
             
         try:
@@ -300,8 +308,9 @@ class MC_embedder(watif_integrated_embedder):
         finally:
             if not is_cycle:
                 self._processing_users.remove(id_user)
-                self.logger.debug("[Thread %s] Finished processing user %s", 
-                                thread_name, id_user)
+                duration = perf_counter() - start_time
+                self.logger.debug("[Thread %s] Completed user tracking for %s in %.2f seconds", 
+                                thread_name, id_user, duration)
 
     def get_user_embedding( self, id_user: str | int | bytes, follow_weight: float = 0.4, 
                             interest_weight: float = 0.4, description_weight: float = 0.2, 
@@ -534,55 +543,84 @@ class MC_embedder(watif_integrated_embedder):
         Raises:
             ValueError: If the sum of `key_weight`, `title_weight`, `content_weight`, and `author_weight` is not equal to 1.
         """
-        entity = self._get_embedding('posts', id_post)
+        thread_name = current_thread().name
+        start_time = perf_counter()
         
-        if not entity:
-            raise ValueError(f"Post {id_post} doesn't exist: impossible to generate an embedding")
+        self.logger.info("[Thread %s] Starting embedding generation for post %s with weights (key=%.2f, title=%.2f, content=%.2f, author=%.2f)", 
+                        thread_name, id_post, key_weight, title_weight, content_weight, author_weight)
         
-        # Return cached embedding if it exists and is fresh
-        if "embedding" in entity:
-            embed_date = datetime.fromisoformat(entity['embedding']['date'])
-            if (datetime.now() - embed_date) < self.update_time:
-                return np.array(entity["embedding"]['vector'])
-        
-        if not np.isclose(key_weight + title_weight + content_weight + author_weight, 1.0, rtol=1e-09, atol=1e-09):
-            raise ValueError('The sum of arguments key_weight, title_weight, content_weight and author_weight must be 1.0')
-        
-        post = self.db.mongo_db['posts'].find_one({"_id": id_post})
-        embedded_post = Utils.array_avg(
-            Utils.array_avg(
-                self.get_key_embedding(id_key, *args, **kwargs)
-                for id_key in post['keys']
-            ) * key_weight,
-            self.model.encode(
-                sentences = post['title'],
-                prompt = 'Titre:\n',
-                *args, **kwargs
-            ) * title_weight,
-            self.model.encode(
-                sentences = post['content'],
-                prompt = 'Content:\n',
-                *args, **kwargs
-            ) * content_weight,
-            self.get_user_embedding(
-                post['id_author'],
-                *args, **kwargs
-            ) * author_weight
-        )
-        
-        # Store the embedding in the database
-        with self._db_lock:
-            self.db.mongo_db['posts'].update_one(
-                {'_id': id_post},
-                {'$set': {
-                    'embedding': {
-                        'date': datetime.now().isoformat(),
-                        'vector': embedded_post.tolist()
-                    }
-                }}
+        try:
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Checking cached embedding for post %s", thread_name, id_post)
+                entity = self._get_embedding('posts', id_post)
+                
+                if not entity:
+                    self.logger.error("[Thread %s] Post %s not found in database", thread_name, id_post)
+                    raise ValueError(f"Post {id_post} doesn't exist: impossible to generate an embedding")
+                
+                # Return cached embedding if it exists and is fresh
+                if "embedding" in entity:
+                    embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                    if (datetime.now() - embed_date) < self.update_time:
+                        self.logger.info("[Thread %s] Using cached embedding for post %s (age: %s)", 
+                                        thread_name, id_post, datetime.now() - embed_date)
+                        return np.array(entity["embedding"]['vector'])
+                    self.logger.debug("[Thread %s] Cached embedding expired for post %s", thread_name, id_post)
+            
+            if not np.isclose(key_weight + title_weight + content_weight + author_weight, 1.0, rtol=1e-09, atol=1e-09):
+                self.logger.error("[Thread %s] Invalid weights sum for post %s: %.3f", 
+                                thread_name, id_post, key_weight + title_weight + content_weight + author_weight)
+                raise ValueError('The sum of weights must be 1.0')
+            
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Retrieving post data for %s", thread_name, id_post)
+                post = self.db.mongo_db['posts'].find_one({"_id": id_post})
+                self.logger.debug("[Thread %s] Found post %s with %d keys", thread_name, id_post, len(post['keys']))
+            
+            embedded_post = Utils.array_avg(
+                Utils.array_avg(
+                    self.get_key_embedding(id_key, *args, **kwargs)
+                    for id_key in post['keys']
+                ) * key_weight,
+                self.model.encode(
+                    sentences = post['title'],
+                    prompt = 'Titre:\n',
+                    *args, **kwargs
+                ) * title_weight,
+                self.model.encode(
+                    sentences = post['content'],
+                    prompt = 'Content:\n',
+                    *args, **kwargs
+                ) * content_weight,
+                self.get_user_embedding(
+                    post['id_author'],
+                    *args, **kwargs
+                ) * author_weight
             )
-        
-        return embedded_post
+            
+            # Store the embedding in the database
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Storing new embedding for post %s", thread_name, id_post)
+                self.db.mongo_db['posts'].update_one(
+                    {'_id': id_post},
+                    {'$set': {
+                        'embedding': {
+                            'date': datetime.now().isoformat(),
+                            'vector': embedded_post.tolist()
+                        }
+                    }}
+                )
+            
+            return embedded_post
+            
+        except Exception as e:
+            self.logger.error("[Thread %s] Failed to generate embedding for post %s: %s", 
+                            thread_name, id_post, str(e), exc_info=True)
+            raise
+        finally:
+            duration = perf_counter() - start_time
+            self.logger.info("[Thread %s] Completed embedding generation for post %s in %.2f seconds", 
+                            thread_name, id_post, duration)
 
     def get_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
         """
