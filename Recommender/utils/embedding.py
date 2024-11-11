@@ -546,12 +546,13 @@ class MC_embedder(watif_integrated_embedder):
         thread_name = current_thread().name
         start_time = perf_counter()
         
-        self.logger.info("[Thread %s] Starting embedding generation for post %s with weights (key=%.2f, title=%.2f, content=%.2f, author=%.2f)", 
-                        thread_name, id_post, key_weight, title_weight, content_weight, author_weight)
+        self.logger.info("[Thread %s] Starting post embedding generation for %s", thread_name, id_post)
+        self.logger.debug(  "[Thread %s] Weights configuration - key: %.2f, title: %.2f, content: %.2f, author: %.2f", 
+                            thread_name, key_weight, title_weight, content_weight, author_weight)
         
         try:
             with self._db_lock:
-                self.logger.debug("[Thread %s] Checking cached embedding for post %s", thread_name, id_post)
+                self.logger.debug("[Thread %s] Acquiring database lock for post %s", thread_name, id_post)
                 entity = self._get_embedding('posts', id_post)
                 
                 if not entity:
@@ -561,25 +562,33 @@ class MC_embedder(watif_integrated_embedder):
                 # Return cached embedding if it exists and is fresh
                 if "embedding" in entity:
                     embed_date = datetime.fromisoformat(entity['embedding']['date'])
-                    if (datetime.now() - embed_date) < self.update_time:
-                        self.logger.info("[Thread %s] Using cached embedding for post %s (age: %s)", 
-                                        thread_name, id_post, datetime.now() - embed_date)
+                    age = datetime.now() - embed_date
+                    self.logger.debug("[Thread %s] Found existing embedding for post %s (age: %s)", 
+                                    thread_name, id_post, age)
+                    if age < self.update_time:
+                        self.logger.info("[Thread %s] Using cached embedding for post %s", thread_name, id_post)
                         return np.array(entity["embedding"]['vector'])
                     self.logger.debug("[Thread %s] Cached embedding expired for post %s", thread_name, id_post)
             
-            if not np.isclose(key_weight + title_weight + content_weight + author_weight, 1.0, rtol=1e-09, atol=1e-09):
+            weights_sum = key_weight + title_weight + content_weight + author_weight
+            if not np.isclose(weights_sum, 1.0, rtol=1e-09, atol=1e-09):
                 self.logger.error("[Thread %s] Invalid weights sum for post %s: %.3f", 
-                                thread_name, id_post, key_weight + title_weight + content_weight + author_weight)
+                                thread_name, id_post, weights_sum)
                 raise ValueError('The sum of weights must be 1.0')
             
             with self._db_lock:
                 self.logger.debug("[Thread %s] Retrieving post data for %s", thread_name, id_post)
                 post = self.db.mongo_db['posts'].find_one({"_id": id_post})
-                self.logger.debug("[Thread %s] Found post %s with %d keys", thread_name, id_post, len(post['keys']))
+                self.logger.debug("[Thread %s] Found post %s with %d keys", 
+                                thread_name, id_post, len(post['keys']))
             
+            self.logger.debug("[Thread %s] Generating embeddings for post components", thread_name)
             embedded_post = Utils.array_avg(
                 Utils.array_avg(
-                    self.get_key_embedding(id_key, *args, **kwargs)
+                    self.get_key_embedding(
+                        id_key, 
+                        *args, **kwargs
+                    )
                     for id_key in post['keys']
                 ) * key_weight,
                 self.model.encode(
@@ -619,7 +628,7 @@ class MC_embedder(watif_integrated_embedder):
             raise
         finally:
             duration = perf_counter() - start_time
-            self.logger.info("[Thread %s] Completed embedding generation for post %s in %.2f seconds", 
+            self.logger.info("[Thread %s] Completed post embedding generation for %s in %.2f seconds", 
                             thread_name, id_post, duration)
 
     def get_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
@@ -641,60 +650,87 @@ class MC_embedder(watif_integrated_embedder):
         Raises:
             ValueError: If the sum of `author_weight`, `name_weight`, `member_weight`, and `post_weight` is not equal to 1.
         """
-        entity = self._get_embedding('threads', id_thread)
+        thread_name = current_thread().name
+        start_time = perf_counter()
         
-        if not entity:
-            raise ValueError(f"Thread {id_thread} doesn't exist: impossible to generate an embedding")
+        self.logger.info("[Thread %s] Starting thread embedding generation for %s", thread_name, id_thread)
+        self.logger.debug(  "[Thread %s] Weights configuration - author: %.2f, name: %.2f, member: %.2f, post: %.2f",
+                            thread_name, author_weight, name_weight, member_weight, post_weight)
         
-        # Return cached embedding if it exists and is fresh
-        if "embedding" in entity:
-            embed_date = datetime.fromisoformat(entity['embedding']['date'])
-            if (datetime.now() - embed_date) < self.update_time:
-                return np.array(entity["embedding"]['vector'])
-        
-        if not np.isclose(author_weight + name_weight + member_weight + post_weight, 1.0, rtol=1e-09, atol=1e-09):
-            raise ValueError('The sum of arguments author_weight, name_weight, member_weight and post_weight must be 1.0')
-        
-        thread = self.db.mongo_db['threads'].find_one({"_id": id_thread})
-        embedded_thread = Utils.array_avg(
-            self.get_user_embedding(
-                thread['id_author'],
-                *args, **kwargs
-            ) * author_weight,
-            self.model.encode(
-                sentences = thread['name'],
-                prompt = 'Discussion name:\n',
-                *args, **kwargs
-            ),
-            Utils.array_avg(
+        try:
+            entity = self._get_embedding('threads', id_thread)
+            
+            if not entity:
+                self.logger.error("[Thread %s] Thread %s not found in database", thread_name, id_thread)
+                raise ValueError(f"Thread {id_thread} doesn't exist: impossible to generate an embedding")
+            
+            # Return cached embedding if it exists and is fresh
+            if "embedding" in entity:
+                embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                age = datetime.now() - embed_date
+                self.logger.debug("[Thread %s] Found existing embedding for thread %s (age: %s)",
+                                thread_name, id_thread, age)
+                if age < self.update_time:
+                    return np.array(entity["embedding"]['vector'])
+            
+            weights_sum = author_weight + name_weight + member_weight + post_weight
+            if not np.isclose(weights_sum, 1.0, rtol=1e-09, atol=1e-09):
+                self.logger.error("[Thread %s] Invalid weights sum for thread %s: %.3f",
+                                thread_name, id_thread, weights_sum)
+                raise ValueError('The sum of weights must be 1.0')
+            
+            self.logger.debug("[Thread %s] Retrieving thread data and generating embeddings", thread_name)
+            thread = self.db.mongo_db['threads'].find_one({"_id": id_thread})
+            
+            embedded_thread = Utils.array_avg(
                 self.get_user_embedding(
-                    id_member,
+                    thread['id_author'], 
                     *args, **kwargs
-                )
-                for id_member in thread['members']
-            ) * member_weight,
-            Utils.array_avg(
-                self.get_post_embedding(
-                    post['idPost'],
+                ) * author_weight,
+                self.model.encode(
+                    sentences = thread['name'],
+                    prompt = 'Discussion name:\n',
                     *args, **kwargs
-                )
-                for post in self.db.mongo_db['posts'].find({"id_thread": id_thread})
-            ) * post_weight
-        )
-        
-        # Store the embedding in the database
-        with self._db_lock:
-            self.db.mongo_db['threads'].update_one(
-                {'_id': id_thread},
-                {'$set': {
-                    'embedding': {
-                        'date': datetime.now().isoformat(),
-                        'vector': embedded_thread.tolist()
-                    }
-                }}
+                ) * name_weight,
+                Utils.array_avg(
+                    self.get_user_embedding(
+                        id_member,
+                        *args, **kwargs
+                    )
+                    for id_member in thread['members']
+                ) * member_weight,
+                Utils.array_avg(
+                    self.get_post_embedding(
+                        post['idPost'],
+                        *args, **kwargs
+                    )
+                    for post in self.db.mongo_db['posts'].find({"id_thread": id_thread})
+                ) * post_weight
             )
-        
-        return embedded_thread
+            
+            # Store the embedding in the database
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Storing new embedding for thread %s", thread_name, id_thread)
+                self.db.mongo_db['threads'].update_one(
+                    {'_id': id_thread},
+                    {'$set': {
+                        'embedding': {
+                            'date': datetime.now().isoformat(),
+                            'vector': embedded_thread.tolist()
+                        }
+                    }}
+                )
+            
+            return embedded_thread
+            
+        except Exception as e:
+            self.logger.error("[Thread %s] Failed to generate embedding for thread %s: %s",
+                            thread_name, id_thread, str(e), exc_info=True)
+            raise
+        finally:
+            duration = perf_counter() - start_time
+            self.logger.info("[Thread %s] Completed thread embedding generation for %s in %.2f seconds",
+                            thread_name, id_thread, duration)
 
     def get_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -708,32 +744,53 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: The generated or retrieved key embedding as a NumPy array.
         """
-        entity = self._get_embedding('keys', id_key)
+        thread_name = current_thread().name
+        start_time = perf_counter()
         
-        if not entity:
-            raise ValueError(f"Key {id_key} doesn't exist: impossible to generate an embedding")
+        self.logger.info("[Thread %s] Starting key embedding generation for %s", thread_name, id_key)
         
-        # Return cached embedding if it exists and is fresh
-        if "embedding" in entity:
-            embed_date = datetime.fromisoformat(entity['embedding']['date'])
-            if (datetime.now() - embed_date) < self.update_time:
-                return np.array(entity["embedding"]['vector'])
-        
-        embedded_key = self.model.encode(entity['name'], *args, **kwargs)
-        
-        # Store the embedding in the database
-        with self._db_lock:
-            self.db.mongo_db['keys'].update_one(
-                {'_id': id_key},
-                {'$set': {
-                    'embedding': {
-                        'date': datetime.now().isoformat(),
-                        'vector': embedded_key.tolist()
-                    }
-                }}
-            )
-        
-        return embedded_key
+        try:
+            entity = self._get_embedding('keys', id_key)
+            
+            if not entity:
+                self.logger.error("[Thread %s] Key %s not found in database", thread_name, id_key)
+                raise ValueError(f"Key {id_key} doesn't exist: impossible to generate an embedding")
+            
+            # Return cached embedding if it exists and is fresh
+            if "embedding" in entity:
+                embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                age = datetime.now() - embed_date
+                self.logger.debug("[Thread %s] Found existing embedding for key %s (age: %s)",
+                                thread_name, id_key, age)
+                if age < self.update_time:
+                    return np.array(entity["embedding"]['vector'])
+            
+            self.logger.debug("[Thread %s] Generating new embedding for key %s", thread_name, id_key)
+            embedded_key = self.model.encode(entity['name'], *args, **kwargs)
+            
+            # Store the embedding in the database
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Storing new embedding for key %s", thread_name, id_key)
+                self.db.mongo_db['keys'].update_one(
+                    {'_id': id_key},
+                    {'$set': {
+                        'embedding': {
+                            'date': datetime.now().isoformat(),
+                            'vector': embedded_key.tolist()
+                        }
+                    }}
+                )
+            
+            return embedded_key
+            
+        except Exception as e:
+            self.logger.error("[Thread %s] Failed to generate embedding for key %s: %s",
+                            thread_name, id_key, str(e), exc_info=True)
+            raise
+        finally:
+            duration = perf_counter() - start_time
+            self.logger.info("[Thread %s] Completed key embedding generation for %s in %.2f seconds",
+                            thread_name, id_key, duration)
 
     def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -747,32 +804,72 @@ class MC_embedder(watif_integrated_embedder):
         Returns:
             np.ndarray: The generated or retrieved interest embedding as a NumPy array.
         """
-        entity = self._get_embedding('interest', id_interest)
+        thread_name = current_thread().name
+        start_time = perf_counter()
         
-        if not entity:
-            raise ValueError(f"Interest {id_interest} doesn't exist: impossible to generate an embedding")
+        self.logger.info("[Thread %s] Starting interest embedding generation for %s", thread_name, id_interest)
         
-        # Return cached embedding if it exists and is fresh
-        if "embedding" in entity:
-            embed_date = datetime.fromisoformat(entity['embedding']['date'])
-            if (datetime.now() - embed_date) < self.update_time:
-                return np.array(entity["embedding"]['vector'])
-        
-        embedded_interest = self.model.encode(entity['name'], *args, **kwargs)
-        
-        # Store the embedding in the database
-        with self._db_lock:
-            self.db.mongo_db['interest'].update_one(
-                {'_id': id_interest},
-                {'$set': {
-                    'embedding': {
-                        'date': datetime.now().isoformat(),
-                        'vector': embedded_interest.tolist()
-                    }
-                }}
-            )
-        
-        return embedded_interest
+        try:
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Acquiring database lock for interest %s", thread_name, id_interest)
+                entity = self._get_embedding('interest', id_interest)
+                
+                if not entity:
+                    self.logger.error("[Thread %s] Interest %s not found in database", thread_name, id_interest)
+                    raise ValueError(f"Interest {id_interest} doesn't exist: impossible to generate an embedding")
+                
+                self.logger.debug("[Thread %s] Retrieved interest data: %s (name length: %d)", 
+                                thread_name, id_interest, len(entity['name']))
+                
+                # Check for cached embedding
+                if "embedding" in entity:
+                    embed_date = datetime.fromisoformat(entity['embedding']['date'])
+                    age = datetime.now() - embed_date
+                    self.logger.debug("[Thread %s] Found existing embedding for interest %s (age: %s)", 
+                                    thread_name, id_interest, age)
+                    
+                    if age < self.update_time:
+                        self.logger.info("[Thread %s] Using cached embedding for interest %s (age: %s < threshold: %s)", 
+                                        thread_name, id_interest, age, self.update_time)
+                        cached_vector = np.array(entity["embedding"]['vector'])
+                        self.logger.debug("[Thread %s] Retrieved cached embedding for interest %s (shape: %s)", 
+                                        thread_name, id_interest, cached_vector.shape)
+                        return cached_vector
+                    
+                    self.logger.debug("[Thread %s] Cached embedding expired for interest %s (age: %s >= threshold: %s)", 
+                                    thread_name, id_interest, age, self.update_time)
+            
+            self.logger.debug(  "[Thread %s] Generating new embedding for interest %s using model", 
+                                thread_name, id_interest)
+            embedded_interest = self.model.encode(entity['name'], *args, **kwargs)
+            self.logger.debug(  "[Thread %s] Generated embedding for interest %s (shape: %s)", 
+                                thread_name, id_interest, embedded_interest.shape)
+            
+            # Store the embedding in the database
+            with self._db_lock:
+                self.logger.debug("[Thread %s] Storing new embedding for interest %s", thread_name, id_interest)
+                update_result = self.db.mongo_db['interest'].update_one(
+                    {'_id': id_interest},
+                    {'$set': {
+                        'embedding': {
+                            'date': datetime.now().isoformat(),
+                            'vector': embedded_interest.tolist()
+                        }
+                    }}
+                )
+                self.logger.debug(  "[Thread %s] Database update for interest %s completed (modified: %s)", 
+                                    thread_name, id_interest, update_result.modified_count > 0)
+            
+            return embedded_interest
+            
+        except Exception as e:
+            self.logger.error(  "[Thread %s] Failed to generate embedding for interest %s: %s", 
+                                thread_name, id_interest, str(e), exc_info=True)
+            raise
+        finally:
+            duration = perf_counter() - start_time
+            self.logger.info("[Thread %s] Completed interest embedding generation for %s in %.2f seconds", 
+                            thread_name, id_interest, duration)
 
     def get_user_embeddings(self, *args, **kwargs) -> dict:
         """
