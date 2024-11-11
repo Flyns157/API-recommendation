@@ -18,14 +18,29 @@ class AuthDatabase:
         conn (sqlite3.Connection): The connection object for the SQLite database.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db_name: str = 'database') -> None:
         """
         Initializes the AuthDatabase instance by connecting to the SQLite database and
         creating the users table if it doesn't already exist.
+        
+        Parameters:
+            db_name (str): Name of the SQLite database file.
         """
-        self.conn = sqlite3.connect('database')
-        self.create_table()
-    
+        try:
+            self.conn = sqlite3.connect(db_name)
+            self.create_table()
+        except sqlite3.Error as e:
+            print(f"Database connection error: {e}")
+            raise
+
+    def __enter__(self):
+        """Support with-statement for automatic resource management."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Closes the database connection on exit."""
+        self.close()
+
     @staticmethod
     def hash_password(password: str) -> bytes:
         """
@@ -63,7 +78,7 @@ class AuthDatabase:
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username TEXT NOT NULL UNIQUE,
-                    password TEXT NOT NULL
+                    password BLOB NOT NULL
                 )
             """)
 
@@ -82,11 +97,11 @@ class AuthDatabase:
             with self.conn:
                 self.conn.execute("""
                     INSERT INTO users (username, password) VALUES (?, ?)
-                """, (username, AuthDatabase.hash_password(password)))
-            print(f"Utilisateur {username} créé avec succès.")
+                """, (username, self.hash_password(password)))
+            print(f"User {username} created successfully.")
             return True
         except sqlite3.IntegrityError:
-            print(f"Erreur : Le nom d'utilisateur {username} existe déjà.")
+            print(f"Error: Username {username} already exists.")
             return False
     
     def check_user(self, username: str, password: str) -> bool:
@@ -104,8 +119,8 @@ class AuthDatabase:
             cursor = self.conn.execute("""
                 SELECT password FROM users WHERE username = ?
             """, (username,))
-            hashed = cursor.fetchone()
-            return hashed is not None and AuthDatabase.check_password(password, hashed)
+            result = cursor.fetchone()
+            return result is not None and self.check_password(password, result[0])
     
     def exist_user(self, username: str) -> bool:
         """
@@ -119,10 +134,9 @@ class AuthDatabase:
         """
         with self.conn:
             cursor = self.conn.execute("""
-                SELECT * FROM users WHERE username = ?
+                SELECT 1 FROM users WHERE username = ?
             """, (username,))
-            user = cursor.fetchone()
-            return user is not None
+            return cursor.fetchone() is not None
     
     def close(self) -> None:
         """

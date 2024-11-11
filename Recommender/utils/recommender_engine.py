@@ -20,6 +20,8 @@ Usage:
 """
 
 from .database import Database
+
+import numpy as np
 import random
 
 class recommender_engine:
@@ -88,6 +90,9 @@ class recommender_engine:
 
 # Mattéo
 # =====================================================================================================================
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer
+
 class MC_engine(recommender_engine):
     """
     Monte Carlo-based recommendation engine for suggesting users to follow, posts to view, and threads to join.
@@ -104,7 +109,7 @@ class MC_engine(recommender_engine):
             Recommends threads to join based on shared memberships and relevant interests.
     """
 
-    def recommend_users(self, user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5) -> list[str]:
+    def recommend_users(self, user_id: str, follow_weight: float = 0.5, interest_weight: float = 0.5, limit: int = 10) -> list[str]:
         """
         Recommends users to follow based on common followers and shared interests.
 
@@ -116,6 +121,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended user IDs, sorted by relevance.
         """
+        if not np.isclose(follow_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments follow_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:INTERESTED_IN]-(u2:User)
@@ -126,11 +133,11 @@ class MC_engine(recommender_engine):
                 RETURN u2.id_user AS user_id,
                        ($follow_weight * common_follows + $interest_weight * common_interests) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight)
+                LIMIT $limit
+            """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight, limit=limit)
             return [record["user_id"] for record in scores]
 
-    def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3) -> list[str]:
+    def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3, limit: int = 10) -> list[str]:
         """
         Recommends posts based on shared interests and user interactions.
 
@@ -142,6 +149,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended post IDs, sorted by relevance.
         """
+        if not np.isclose(interaction_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments interaction_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(p:Post)
@@ -151,11 +160,11 @@ class MC_engine(recommender_engine):
                 RETURN p.id_post AS post_id,
                        ($interest_weight * interest_score + $interaction_weight * interaction_score) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight)
+                LIMIT $limit
+            """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight, limit=limit)
             return [record["post_id"] for record in scores]
 
-    def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4) -> list[str]:
+    def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4, limit: int = 10) -> list[str]:
         """
         Recommends threads to join based on shared memberships and user interests.
 
@@ -167,6 +176,8 @@ class MC_engine(recommender_engine):
         Returns:
             list[str]: A list of recommended thread IDs, sorted by relevance.
         """
+        if not np.isclose(member_weight + interest_weight, 1.0, rtol=1e-09, atol=1e-09):
+            raise ValueError('The sum of arguments member_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:User)
@@ -176,9 +187,130 @@ class MC_engine(recommender_engine):
                 RETURN t.id_thread AS thread_id,
                        ($member_weight * member_score + $interest_weight * interest_score) AS score
                 ORDER BY score DESC
-                LIMIT 10
-            """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight)
+                LIMIT $limit
+            """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight, limit=limit)
             return [record["thread_id"] for record in scores]
+
+# Mattéo - embedding
+# =====================================================================================================================
+from .embedding import MC_embedder
+from .. import logger
+class EM_engine(recommender_engine):
+    def __init__(self, db: Database) -> None:
+        super().__init__(db)
+        self.embedder = MC_embedder(db, logger=logger)
+
+    def _get_embedding(self, entity_type: str, entity_id: int |str | bytes) -> np.ndarray:
+        """
+        Retrieve the embedding vector for a given entity from MongoDB.
+        
+        Args:
+            entity_type (str): The type of entity (e.g., 'user', 'post', 'thread').
+            entity_id (str): The ID of the entity.
+        
+        Returns:
+            np.ndarray: The embedding vector for the entity.
+        """
+        self.embedder.encode(entity_type, entity_id)
+
+    def recommend_users(self, id_user, top_n=50):
+        """
+        Recommend users based on similarity of embeddings.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of recommendations to return.
+
+        Returns:
+            list: A list of recommended user IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all users' embeddings except the target user
+        users = list(self.db.mongo_db["users"].find({"_id": {"$ne": id_user}}, {"_id": 1, "embedding": 1}))
+        
+        user_ids = []
+        user_embeddings = []
+        for user in users:
+            if "embedding" in user:
+                user_ids.append(user["_id"])
+                user_embeddings.append(np.array(user["embedding"]))
+
+        # Calculate cosine similarity between the target user and all other users
+        user_embeddings = np.vstack(user_embeddings)
+        similarities = cosine_similarity([user_embedding], user_embeddings).flatten()
+        
+        # Get top N similar users
+        recommended_ids = [user_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
+
+    def recommend_posts(self, id_user, top_n=50):
+        """
+        Recommend posts based on similarity of embeddings between user and posts.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of posts to recommend.
+
+        Returns:
+            list: A list of recommended post IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all posts' embeddings
+        posts = list(self.db.mongo_db["posts"].find({}, {"_id": 1, "embedding": 1}))
+        
+        post_ids = []
+        post_embeddings = []
+        for post in posts:
+            if "embedding" in post:
+                post_ids.append(post["_id"])
+                post_embeddings.append(np.array(post["embedding"]))
+
+        # Calculate cosine similarity between the user and all posts
+        post_embeddings = np.vstack(post_embeddings)
+        similarities = cosine_similarity([user_embedding], post_embeddings).flatten()
+        
+        # Get top N similar posts
+        recommended_ids = [post_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
+
+    def recommend_threads(self, id_user, top_n=50):
+        """
+        Recommend threads based on similarity of embeddings between user and threads.
+        
+        Args:
+            id_user (str): The ID of the user.
+            top_n (int): The number of threads to recommend.
+
+        Returns:
+            list: A list of recommended thread IDs.
+        """
+        user_embedding = self._get_embedding("users", id_user)
+        if user_embedding is None:
+            return []
+        
+        # Fetch all threads' embeddings
+        threads = list(self.db.mongo_db["threads"].find({}, {"_id": 1, "embedding": 1}))
+        
+        thread_ids = []
+        thread_embeddings = []
+        for thread in threads:
+            if "embedding" in thread:
+                thread_ids.append(thread["_id"])
+                thread_embeddings.append(np.array(thread["embedding"]))
+
+        # Calculate cosine similarity between the user and all threads
+        thread_embeddings = np.vstack(thread_embeddings)
+        similarities = cosine_similarity([user_embedding], thread_embeddings).flatten()
+        
+        # Get top N similar threads
+        recommended_ids = [thread_ids[i] for i in np.argsort(similarities)[-top_n:][::-1]]
+        return recommended_ids
 
 # Jean-Alexis
 # =====================================================================================================================
@@ -222,7 +354,7 @@ class JA_engine(recommender_engine):
             >>> recommender.recommend_users(123, follow_weight=0.5, intrest_weight=0.5)
             [456, 789, 1011]
         """
-        if follow_weight + intrest_weight != 1.0:
+        if not np.isclose(follow_weight + intrest_weight, 1.0, rtol=1e-09, atol=1e-09):
             raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(

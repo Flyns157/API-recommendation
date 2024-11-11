@@ -14,3 +14,7 @@ Werkzeug
 gunicorn
 setuptools
 pymongo[srv]
+numpy
+scipy
+scikit-learn
+sentence-transformers
