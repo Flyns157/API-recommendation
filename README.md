@@ -91,3 +91,25 @@ For open source projects, say how it is licensed.
 
 ## Project status
 If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+To run the actual version:
+```
+docker build --tag recommandation_api .
+docker run -it --name api recommandation_api
+docker compose up -d
+python -m pip install -r requirements.txt
+python -m Recommender --debug --sync
+```
+
+To build and install the package:
+
+```
+# Create a source distribution
+python setup.py sdist
+
+# Create a wheel distribution
+python setup.py bdist_wheel
+
+# Install in development mode
+pip install -e .
+```

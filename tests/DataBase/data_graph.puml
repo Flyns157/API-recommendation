@@ -1,0 +1,67 @@
+@startuml
+
+entity "users" as Users {
+    + id_user : string
+    + role : string
+    + username : string
+    + password : string
+    + mail : string
+    + name : string
+    + surname : string
+    + birthdate : date
+    + pp : string
+    + follow : list<int>
+    + blocked : list<int>
+    + interest : list<string>
+    + description : string
+    + status : string
+}
+
+entity "roles" as Roles {
+    + name : string
+    + right : list<string>
+    + extend : list<string>
+}
+
+entity "threads" as Threads {
+    + id_thread : string
+    + name : string
+    + range : string
+    + members : list<int>
+    + id_owner : int
+    + admins : list<int>
+}
+
+entity "posts" as Posts {
+    + id_post : string
+    + id_thread : int
+    + id_author : int
+    + date : datetime
+    + title : string
+    + content : string
+    + media : list<string>
+    + keys : list<string>
+    + likes : list<int>
+    + comments : list<int>
+}
+
+entity "interests" as Interests {
+    + id_interest : string
+    + name : string
+}
+
+entity "keys" as Keys {
+    + id_key : string
+    + name : string
+}
+
+Users --o Interests : "Interested by\n(on interests)"
+Users --o Threads : "Has created\n(on id_owner)"
+Users --o Posts : "Has posted\n(on id_author)"
+Threads --o Posts : "Contain\n(on id_thread)"
+Threads o--o Users : "members"
+Roles --o Users : "role"
+Posts --o Posts : "Commented by"
+Posts --o Keys : "Has tag\n(on keys)"
+
+@enduml

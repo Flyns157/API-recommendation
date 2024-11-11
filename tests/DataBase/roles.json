@@ -1,0 +1,28 @@
+[{
+    "name":"admin",
+    "right": [
+        "ban",
+        "unban",
+        "kick",
+        "give_right",
+        "remove_right"
+    ],
+    "extend": [
+        "user"
+    ]
+},
+{
+    "name":"user",
+    "right": [
+        "mp",
+        "post",
+        "repost",
+        "like",
+        "comment",
+        "follow"
+    ]
+},
+{
+    "name":"banned",
+    "right": []
+}]
