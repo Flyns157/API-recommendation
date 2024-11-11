@@ -231,7 +231,17 @@ class MC_embedder(watif_integrated_embedder):
             Encodes an entity based on its type and ID, with configurable arguments and weights for generating embeddings.
     """
     def __init__(self, db: Database, update_time_hours: int = 2, model: str = 'all-MiniLM-L6-v2', logger: logging.Logger = None, *args, **kwargs) -> None:
-        # TODO : Add docstring
+        """
+        Initializes the MC embedder with database access, the amount of hours before update the embedding and the logger.
+
+        Args:
+            db (Database): Database instance.
+            update_time_hours (int): the life duration of an embedding.
+            model (str): Model name for SentenceTransformer.
+            logger (logging.Logger): The logger to stream logs.
+            *args: Additional arguments.
+            **kwargs: Additional keyword arguments.
+        """
         super().__init__(db, model, *args, **kwargs)
         self.update_time = timedelta(hours=update_time_hours)
         # Thread-local storage for tracking processing users
