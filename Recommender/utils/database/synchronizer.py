@@ -89,7 +89,7 @@ class Synchronizer:
                         session.run("""
                         MATCH (u:User {idUser: $user_id})
                         MATCH (k:Interest {idInterest: $id_key})
-                        MERGE (u)-[:INTERESTED_IN]->(k)
+                        MERGE (u)-[:INTERESTED_BY]->(k)
                         """, user_id=str(user['_id']), id_key=interest_id)
 
             logging.info("User synchronization completed.")
@@ -175,7 +175,7 @@ class Synchronizer:
                 session.run("""
                 MATCH (u:User {idUser: $id_author})
                 MATCH (p:Post {idPost: $id_post})
-                MERGE (u)-[:AUTHORED]->(p)
+                MERGE (u)-[:WRITED_BY]->(p)
                 """, id_author=post['id_author'], id_post=str(post['_id']))
 
                 # Thread relationship
@@ -190,7 +190,7 @@ class Synchronizer:
                     session.run("""
                     MATCH (p:Post {idPost: $id_post})
                     MATCH (k:Key {idkey: $id_key})
-                    MERGE (p)-[:TAGGED_WITH]->(k)
+                    MERGE (p)-[:HAS_KEY]->(k)
                     """, id_post=str(post['_id']), id_key=id_key)
 
                 # Likes relationship
@@ -206,7 +206,7 @@ class Synchronizer:
                     session.run("""
                     MATCH (u:User {idUser: $id_commenter})
                     MATCH (p:Post {idPost: $id_post})
-                    MERGE (u)-[:COMMENTED_ON]->(p)
+                    MERGE (u)-[:HAS_COMMENT]->(p)
                     """, id_commenter=id_commenter, id_post=str(post['_id']))
 
             logging.info("Post synchronization completed.")

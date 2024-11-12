@@ -15,7 +15,7 @@ entity "posts" as Posts{
 }
 
 Users --o Interests : "INTERESTED_BY"
-Users o-- Users: "FOLLOWS"
+Users --o Users: "FOLLOWS"
 Posts --o Keys: "HAS_KEY"
 Posts --o Posts: "HAS_COMMENT"
 Posts --o Users: "WRITED_BY"

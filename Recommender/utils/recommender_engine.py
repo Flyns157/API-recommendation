@@ -125,7 +125,7 @@ class MC_engine(recommender_engine):
             raise ValueError('The sum of arguments follow_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:INTERESTED_IN]-(u2:User)
+                MATCH (u:User {id_user: $user_id})-[:INTERESTED_BY]->(i:Interest)<-[:INTERESTED_BY]-(u2:User)
                 WHERE u2.id_user <> $user_id
                 WITH u2, COUNT(i) AS common_interests
                 MATCH (u)-[:FOLLOWS]->(f:User)<-[:FOLLOWS]-(u2)
@@ -153,7 +153,7 @@ class MC_engine(recommender_engine):
             raise ValueError('The sum of arguments interaction_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(p:Post)
+                MATCH (u:User {id_user: $user_id})-[:INTERESTED_BY]->(i:Interest)<-[:HAS_KEY]-(p:Post)
                 WITH p, COUNT(i) AS interest_score
                 OPTIONAL MATCH (u)-[:LIKES|:COMMENTED_ON]->(p)
                 WITH p, interest_score, COUNT(u) AS interaction_score
@@ -182,7 +182,7 @@ class MC_engine(recommender_engine):
             scores = session.run("""
                 MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:User)
                 WITH t, COUNT(u2) AS member_score
-                MATCH (u)-[:INTERESTED_IN]->(i:Interest)<-[:TAGGED_WITH]-(t)
+                MATCH (u)-[:INTERESTED_BY]->(i:Interest)<-[:HAS_KEY]-(t)
                 WITH t, member_score, COUNT(i) AS interest_score
                 RETURN t.id_thread AS thread_id,
                        ($member_weight * member_score + $interest_weight * interest_score) AS score
