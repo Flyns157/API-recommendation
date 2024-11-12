@@ -1,16 +1,7 @@
 ## Diagramme MCD général (mongoDB)
 
-
-```plantuml
-@startuml
-!include ./mongoDB_data_graph.puml
-@enduml
-```
+```plantuml(./mongoDB_data_graph.puml)```
 
 ## Diagramme MCD pour Neo4j
 
-```plantuml
-@startuml
-!include ./neo4j_data_graph.puml
-@enduml
-```
+```plantuml(./neo4j_data_graph.puml)```
