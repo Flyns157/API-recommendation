@@ -75,4 +75,4 @@ Suggest changes must have documentation and follow the choosen architecture of t
 
 ## License
 
-[MIT License](./LICENSE)
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
