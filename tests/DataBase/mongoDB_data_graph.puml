@@ -58,6 +58,7 @@ entity "keys" as Keys {
 Users --o Interests : "Interested by\n(on interests)"
 Users --o Threads : "Has created\n(on id_owner)"
 Users --o Posts : "Has posted\n(on id_author)"
+Users o-- Users: "FOLLOWS (on follow)"
 Threads --o Posts : "Contain\n(on id_thread)"
 Threads o--o Users : "members"
 Roles --o Users : "role"
