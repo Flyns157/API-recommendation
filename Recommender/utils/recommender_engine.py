@@ -327,12 +327,12 @@ class JA_engine(recommender_engine):
         """
         with self.db.neo4j_driver.session() as session:
             hashtags = session.run(
-                "MATCH (p:posts) WHERE p.id_author = $id_user RETURN p.keys AS hashtags",
+                "MATCH (u:users),(p:posts),(k:keys) WHERE u.idUser = $id_user RETURN k.idKey AS ids",
                 id_user=str(id_user)
             )
             hashtag_set = set()
             for record in hashtags:
-                hashtag_set.update(record["hashtags"])
+                hashtag_set.update(record["ids"])
             return hashtag_set
 
     def recommend_users(self, id_user: str, follow_weight: float = 0.4, intrest_weight: float = 0.6) -> list[str]:
@@ -358,35 +358,43 @@ class JA_engine(recommender_engine):
             raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(
-                "MATCH (u:User) WHERE u.id_user = $id_user RETURN u",
+                "MATCH (u:users) WHERE u.idUser = $idUser RETURN u",
                 id_user=str(id_user)
             ).single()
 
             users = session.run(
-                "MATCH (u:User) WHERE u.id_user <> $id_user RETURN u",
+                "MATCH (u:users) WHERE u.idUser <> $idUser RETURN u",
                 id_user=id_user
             )
 
             scores = {}
             user_follows = {rel.end_node for rel in session.run(
-                "MATCH (u:User)-[f:FOLLOWS]->(f2:User) WHERE u.id_user = $id_user RETURN f2",
+                "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.idUser = $id_user RETURN f2",
                 id_user=id_user
             )}
 
-            user_interests = set(user["u"]["interests"])
+            user_interests = {rel.end_node["idInterest"] for rel in session.run(
+                "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.idUser = $id_user RETURN i",
+                id_user=id_user
+            )}
 
             for u in users:
                 u_follows = {rel.end_node for rel in session.run(
-                    "MATCH (u:User)-[f:FOLLOWS]->(f2:User) WHERE u.id_user = $id_user RETURN f2",
-                    id_user=u["u"]["id_user"]
+                    "MATCH (u:users)-[f:FOLLOWS]->(f2:users) WHERE u.id_user = $id_user RETURN f2",
+                    id_user=u["u"]["idUser"]
                 )}
 
                 follows_score = len(user_follows & u_follows) / len(user_follows | u_follows) if user_follows and u_follows else 0
-                u_interests = set(u["u"]["interest"])
+
+                u_interests = {rel.end_node["idInterest"] for rel in session.run(
+                    "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.idUser = $id_user RETURN i",
+                    id_user=u["u"]["idUser"]
+                )}
+
                 interests_score = len(user_interests & u_interests) / len(user_interests | u_interests) if user_interests and u_interests else 0
 
                 rec_score = ((follows_score*follow_weight) + (interests_score*intrest_weight)) / 2
-                scores[u["u"]["id_user"]] = rec_score
+                scores[u["u"]["idUser"]] = rec_score
 
             return sorted(scores, key=scores.get, reverse=True)
 
@@ -402,7 +410,7 @@ class JA_engine(recommender_engine):
         """
         with self.db.neo4j_driver.session() as session:
             posts = session.run(
-                "MATCH (p:posts) WHERE p.id_author <> $id_user RETURN p",
+                "MATCH (u:users),(p:posts) WHERE u.idUser <> $id_user RETURN p",
                 id_user=str(id_user)
             )
 
@@ -411,23 +419,35 @@ class JA_engine(recommender_engine):
 
             if not user_hashtags:
                 user_interests = session.run(
-                    "MATCH (u:users) WHERE u.id_user = $id_user RETURN u.interests AS interests",
+                    "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.idUser = $id_user RETURN i.idInterest AS interests",
                     id_user=id_user
                 ).single()["interests"]
 
                 for post in posts:
+                    id_author = session.run(
+                        "MATCH (u:users),(p:posts) WHERE u.idUser = $id_user RETURN u.idUser AS id",
+                        id_user=str(post["idPost"])
+                    ).single()["id"]
+
                     u = session.run(
-                        "MATCH (u:users) WHERE u.id_user = $id_author RETURN u.interests AS interests",
-                        id_author=post["id_author"]
+                        "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.id_user = $id_author RETURN i.idInterest AS interests",
+                        id_author=id_author
                     ).single()["interests"]
 
                     interests_score = len(set(user_interests) & set(u)) / len(set(user_interests) | set(u))
-                    scores[post["id_post"]] = interests_score
+                    scores[post["idPost"]] = interests_score
             else:
                 for post in posts:
-                    post_hashtags = set(post["keys"])
+                    hashtags = session.run(
+                        "MATCH (p:posts),(k:keys) WHERE p.idPost = $idPost RETURN k.idKey AS ids",
+                        idPost=str(post["idPost"])
+                    )
+                    post_hashtags = set()
+                    for record in hashtags:
+                        post_hashtags.update(record["ids"])
+
                     score = len(user_hashtags & post_hashtags) / len(user_hashtags | post_hashtags)
-                    scores[post["id_post"]] = score
+                    scores[post["idPost"]] = score
 
             scores_tab = sorted(scores, key=scores.get, reverse=True)
 
