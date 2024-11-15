@@ -47,8 +47,8 @@ import numpy as np
 import logging
 import os
 
-from .database import Database
-from ..utils import Utils
+from ..database import Database
+from .. import Utils
 
 
 class embedder(object):

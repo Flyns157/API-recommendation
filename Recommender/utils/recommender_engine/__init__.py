@@ -19,7 +19,7 @@ Usage:
     or `recommend_threads(user_id)`.
 """
 
-from .database import Database
+from ..database import Database
 
 import numpy as np
 import random
@@ -194,7 +194,7 @@ class MC_engine(recommender_engine):
 # Mattéo - embedding
 # =====================================================================================================================
 from .embedding import MC_embedder
-from .. import logger
+from ... import logger
 class EM_engine(recommender_engine):
     def __init__(self, db: Database) -> None:
         super().__init__(db)
