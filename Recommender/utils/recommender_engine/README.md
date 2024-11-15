@@ -109,4 +109,4 @@ This module provides a flexible framework for implementing recommendation system
 
 - **Hybrid Approaches**: Combine explicit relationships and embeddings.
 - **Real-Time Updates**: Enhance recommendations with live activity streams.
-- **Improved Embeddings**: Use pre-trained language models for richer semantic understanding.
+- **Improved Embeddings**: Use neo4j instead of mongoDB to generate imbedding and use a "range" around the user and don't overload the server
