@@ -1,0 +1,22 @@
+@startuml
+entity "keys" as Keys{
+    + idKey : string
+    + name : string
+}
+entity "interests" as Interests{
+    + idInterest : string
+    + name : string
+}
+entity "users" as Users{
+    + idUser : string
+}
+entity "posts" as Posts{
+    + idPosts : string
+}
+
+Users --o Interests : "INTERESTED_BY"
+Users --o Users: "FOLLOWS"
+Posts --o Keys: "HAS_KEY"
+Posts --o Posts: "HAS_COMMENT"
+Posts --o Users: "WRITED_BY"
+@enduml
