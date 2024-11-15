@@ -71,6 +71,9 @@ class RecommendationAPI(Flask):
         from .api import em_recommendation_bp
         self.register_blueprint(em_recommendation_bp)
         
+        from .api import ja_recommendation_bp
+        self.register_blueprint(ja_recommendation_bp)
+        
         @self.route('/health', methods=['GET'])
         def health_check():
             """
