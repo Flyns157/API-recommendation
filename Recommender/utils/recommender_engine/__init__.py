@@ -234,9 +234,8 @@ class EM_engine(recommender_engine):
         user_ids = []
         user_embeddings = []
         for user in users:
-            if "embedding" in user:
-                user_ids.append(user["_id"])
-                user_embeddings.append(np.array(user["embedding"]))
+            user_ids.append(user["_id"])
+            user_embeddings.append(np.array(self._get_embedding("user", user["_id"])))
 
         # Calculate cosine similarity between the target user and all other users
         user_embeddings = np.vstack(user_embeddings)
@@ -257,7 +256,7 @@ class EM_engine(recommender_engine):
         Returns:
             list: A list of recommended post IDs.
         """
-        user_embedding = self._get_embedding("users", id_user)
+        user_embedding = self._get_embedding("user", id_user)
         if user_embedding is None:
             return []
         
@@ -267,9 +266,8 @@ class EM_engine(recommender_engine):
         post_ids = []
         post_embeddings = []
         for post in posts:
-            if "embedding" in post:
-                post_ids.append(post["_id"])
-                post_embeddings.append(np.array(post["embedding"]))
+            post_ids.append(post["_id"])
+            post_embeddings.append(np.array(self._get_embedding("post", post["_id"])))
 
         # Calculate cosine similarity between the user and all posts
         post_embeddings = np.vstack(post_embeddings)
@@ -290,7 +288,7 @@ class EM_engine(recommender_engine):
         Returns:
             list: A list of recommended thread IDs.
         """
-        user_embedding = self._get_embedding("users", id_user)
+        user_embedding = self._get_embedding("user", id_user)
         if user_embedding is None:
             return []
         
@@ -302,7 +300,7 @@ class EM_engine(recommender_engine):
         for thread in threads:
             if "embedding" in thread:
                 thread_ids.append(thread["_id"])
-                thread_embeddings.append(np.array(thread["embedding"]))
+                thread_embeddings.append(np.array(self._get_embedding("thread", thread["_id"])))
 
         # Calculate cosine similarity between the user and all threads
         thread_embeddings = np.vstack(thread_embeddings)
