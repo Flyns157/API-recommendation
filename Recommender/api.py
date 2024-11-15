@@ -149,8 +149,6 @@ def recommend_users():
 
     Query Parameters:
         user_id (str): The ID of the user requesting recommendations.
-        follow_weight (float, optional): The weight given to mutual followers in scoring, default is 0.5.
-        interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.5.
         limit (int, optional): The size of the recommendation.
 
     Returns:
@@ -181,8 +179,6 @@ def recommend_posts():
 
     Query Parameters:
         user_id (str): The ID of the user requesting recommendations.
-        interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.7.
-        interaction_weight (float, optional): The weight given to user interactions (likes, comments) in scoring, default is 0.3.
         limit (int, optional): The size of the recommendation.
 
     Returns:
@@ -213,8 +209,6 @@ def recommend_threads():
 
     Query Parameters:
         user_id (str): The ID of the user requesting recommendations.
-        member_weight (float, optional): The weight given to shared memberships in scoring, default is 0.6.
-        interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.4.
         limit (int, optional): The size of the recommendation.
 
     Returns:
