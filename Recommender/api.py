@@ -257,13 +257,13 @@ def recommend_users():
     user_id = request.args.get('user_id')
     follow_weight = float(request.args.get('follow_weight', 0.5))
     interest_weight = float(request.args.get('interest_weight', 0.5))
-    limit = int(request.args.get('limit', 10))
+    # limit = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = mc_recommender.recommend_users(user_id, follow_weight, interest_weight, limit)
+        recommendations = ja_recommender.recommend_users(user_id, follow_weight, interest_weight)
         return jsonify({"recommended_users": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_users: {e}")
@@ -289,15 +289,15 @@ def recommend_posts():
             500: Server error, failed to generate recommendations.
     """
     user_id = request.args.get('user_id')
-    interest_weight = float(request.args.get('interest_weight', 0.7))
-    interaction_weight = float(request.args.get('interaction_weight', 0.3))
-    limit = int(request.args.get('limit', 10))
+    # interest_weight = float(request.args.get('interest_weight', 0.7))
+    # interaction_weight = float(request.args.get('interaction_weight', 0.3))
+    # limit = int(request.args.get('limit', 10))
     
     if not user_id:
         return jsonify({"error": "Missing user_id parameter"}), 400
 
     try:
-        recommendations = mc_recommender.recommend_posts(user_id, interest_weight, interaction_weight, limit)
+        recommendations = ja_recommender.recommend_posts(user_id)
         return jsonify({"recommended_posts": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_posts: {e}")

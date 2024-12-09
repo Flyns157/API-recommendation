@@ -356,12 +356,12 @@ class JA_engine(recommender_engine):
             raise ValueError('The sum of arguments follow_weight and intrest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             user = session.run(
-                "MATCH (u:users) WHERE u.idUser = $idUser RETURN u",
+                "MATCH (u:users) WHERE u.idUser = $id_user RETURN u",
                 id_user=str(id_user)
             ).single()
 
             users = session.run(
-                "MATCH (u:users) WHERE u.idUser <> $idUser RETURN u",
+                "MATCH (u:users) WHERE u.idUser <> $id_user RETURN u",
                 id_user=id_user
             )
 
@@ -414,6 +414,7 @@ class JA_engine(recommender_engine):
 
             user_hashtags = self.get_hastags(id_user)
             scores = {}
+            print(user_hashtags)
 
             if not user_hashtags:
                 user_interests = session.run(
