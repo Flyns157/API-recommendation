@@ -18,7 +18,8 @@ __version__ = "0.1.5"
 
 from flask_limiter.util import get_remote_address
 from flask_jwt_extended import JWTManager
-from .utils import Database, Utils
+from .utils import Utils
+from .database import Database
 from flask_limiter import Limiter
 from flask import Flask, jsonify
 from .config import Config

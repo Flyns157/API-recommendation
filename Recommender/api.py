@@ -25,13 +25,13 @@ from flask import Blueprint, jsonify, request
 from .config import Config
 import logging
 
-from .utils.recommender_engine import JA_engine
+from .utils.core import JA_engine
 from . import db
 
 logger = logging.getLogger(__name__)
 
 mc_recommendation_bp = Blueprint(name="mc_recommendation_api", import_name=__name__, url_prefix="/recommend/MC")
-from .utils.recommender_engine import MC_engine
+from .utils.core import MC_engine
 mc_recommender = MC_engine(db)
 
 @mc_recommendation_bp.route('/users', methods=['GET'])
@@ -138,7 +138,7 @@ def recommend_threads():
 
 
 em_recommendation_bp = Blueprint(name="em_recommendation_api", import_name=__name__, url_prefix="/recommend/EM")
-from .utils.recommender_engine import EM_engine
+from .utils.core import EM_engine
 em_recommender = EM_engine(db)
 
 @em_recommendation_bp.route('/users', methods=['GET'])
@@ -232,7 +232,7 @@ def recommend_threads():
         return jsonify({"error": str(e)}), 500
 
 ja_recommendation_bp = Blueprint(name="ja_recommendation_api", import_name=__name__, url_prefix="/recommend/JA")
-from .utils.recommender_engine import JA_engine
+from .utils.core import JA_engine
 ja_recommender = JA_engine(db)
 
 @ja_recommendation_bp.route('/users', methods=['GET'])

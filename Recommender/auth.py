@@ -15,7 +15,7 @@ Routes:
 
 from flask_jwt_extended import create_access_token
 from flask import Blueprint, jsonify, request
-from .utils import Database
+from .database import Database
 from .config import Config
 from . import db
 

@@ -11,7 +11,7 @@ import string
 import random
 import re
 
-from .database import Database
+from ..database import Database
 
 __all__ = ['Database', 'Utils']
 
