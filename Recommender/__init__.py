@@ -18,11 +18,10 @@ __version__ = "0.1.5"
 
 from flask_limiter.util import get_remote_address
 from flask_jwt_extended import JWTManager
-from .utils import Utils
 from .database import Database
 from flask_limiter import Limiter
 from flask import Flask, jsonify
-from .config import Config
+from .utils.config import Config
 import logging
 
 logging.basicConfig(level=logging.INFO,
@@ -66,13 +65,13 @@ class RecommendationAPI(Flask):
         from .auth import bp as auth_bp
         self.register_blueprint(auth_bp)
         
-        from .api import mc_recommendation_bp
+        from .routers import mc_recommendation_bp
         self.register_blueprint(mc_recommendation_bp)
         
-        from .api import em_recommendation_bp
+        from .routers import em_recommendation_bp
         self.register_blueprint(em_recommendation_bp)
         
-        from .api import ja_recommendation_bp
+        from .routers import ja_recommendation_bp
         self.register_blueprint(ja_recommendation_bp)
         
         @self.route('/health', methods=['GET'])
