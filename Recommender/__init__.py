@@ -54,7 +54,10 @@ class RecommenderFastAPI(FastAPI):
             return response
 
     def setup_routes(self) -> None:
-        # Import and register blueprints
+        # Import and register routers
+        from .routers.auth import router as auth_router
+        self.include_router(auth_router)
+        
         from .routers.em_router import router as em_router
         self.include_router(em_router)
 

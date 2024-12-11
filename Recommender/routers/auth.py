@@ -4,12 +4,13 @@ from fastapi_jwt_auth import AuthJWT
 from ..util import hash_password, verify_password
 from ..model.user import User
 
+# fake user database for testing purposes
 fake_users_db = {}
 
-auth_router = APIRouter()
+router = APIRouter(tags=["auth"])
 
 
-@auth_router.post('/register')
+@router.post('/register')
 def register(user: User):
     if user.username in fake_users_db:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -18,7 +19,7 @@ def register(user: User):
     return {"msg": "User registered successfully"}
 
 
-@auth_router.post('/login')
+@router.post('/login')
 def login(user: User, Authorize: AuthJWT = Depends()):
     if user.username not in fake_users_db:
         raise HTTPException(status_code=401, detail="Bad username or password")
@@ -29,7 +30,9 @@ def login(user: User, Authorize: AuthJWT = Depends()):
     
     access_token = Authorize.create_access_token(subject=user.username)
     return {"access_token": access_token}
-@auth_router.get('/protected')
+
+
+@router.get('/protected')
 def protected(Authorize: AuthJWT = Depends()):
     Authorize.jwt_required()
     current_user = Authorize.get_jwt_subject()
