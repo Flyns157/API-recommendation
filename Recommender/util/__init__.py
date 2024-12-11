@@ -6,8 +6,7 @@ Module providing utility functions for generating random codes and other common 
 import numpy as np
 import string
 import random
-
-from ..database import Database
+import bcrypt
 
 
 def generate_verification_code(size: int = 6) -> str:
@@ -79,10 +78,36 @@ def generate_password(size: int = 15) -> str:
     Generate a random password of a given size.
 
     Parameters:
-    size (int): The length of the password to be generated. Defaults to 15.
+        size (int): The length of the password to be generated. Defaults to 15.
 
     Returns:
-    str: A randomly generated password consisting of ASCII letters and digits.
+        str: A randomly generated password consisting of ASCII letters and digits.
     """
     CHARS = string.ascii_letters + string.digits
     return ''.join(random.choice(CHARS) for _ in range(size))
+
+
+def hash_password(password: str) -> str:
+    """
+    Hash a password using bcrypt.
+
+    Parameters:
+        password (str): The password to be hashed.
+
+    Returns:
+        str: The hashed password.
+    """
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Verify a plain password against a hashed password using bcrypt.
+
+    Parameters:
+        plain_password (str): The plain password to be verified.
+        hashed_password (str): The hashed password to be verified against.
+
+    Returns:
+        bool: True if the plain password matches the hashed password, False otherwise.
+    """
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
