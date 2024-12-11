@@ -4,7 +4,7 @@ This file contains the API routes for the Monte Carlo-based recommendation engin
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_jwt_auth import AuthJWT
 
-from ..utils.config import Config
+from ..util.config import Config
 from ..core.mc_engine import MC_engine
 from ..database import get_database
 

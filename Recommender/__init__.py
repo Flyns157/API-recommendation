@@ -6,19 +6,28 @@ This file is the entry point of the API. It initializes the FastAPI app and regi
 __version__ = "0.2.5"
 
 from fastapi import FastAPI, Request
-
+from fastapi_jwt_auth import AuthJWT
+from pydantic import BaseModel
 import logging
 import time
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        logging.FileHandler("app.log"),  # Log to a file
-                        logging.StreamHandler()          # Also log to console
-                    ])
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),  # Log to a file
+        logging.StreamHandler()          # Also log to console
+    ]
+)
 main_logger = logging.getLogger(__name__)
 
+class Settings(BaseModel):
+    authjwt_secret_key: str = "your_secret_key"  # Change this to a more secure secret key
+
+@AuthJWT.load_config
+def get_config():
+    return Settings()
 
 class RecommenderFastAPI(FastAPI):
     def __init__(self, title: str = "Recommender-FastAPI", version: str = __version__, *args, **kwargs):
@@ -55,16 +64,8 @@ class RecommenderFastAPI(FastAPI):
         from .routers.ja_router import router as ja_router
         self.include_router(ja_router)
 
-        # from .auth import bp as auth_bp
-        # self.register_blueprint(auth_bp)
-        
-        # from .routers import mc_recommendation_bp
-        # self.register_blueprint(mc_recommendation_bp)
-        
-        # from .routers import em_recommendation_bp
-        # self.register_blueprint(em_recommendation_bp)
-        
-        # from .routers import ja_recommendation_bp
-        # self.register_blueprint(ja_recommendation_bp)
+        # Authentication routes
+        self.include_router(self.auth_router())
+
 
 app = RecommenderFastAPI()

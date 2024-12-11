@@ -3,7 +3,7 @@ This file contains the API routes for the EM-based recommendation engine.
 """
 from flask_jwt_extended import jwt_required
 from flask import Blueprint, jsonify, request
-from ..utils.config import Config
+from ..util.config import Config
 import logging
 
 from ..core.em_engine import EM_engine
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 em_recommendation_bp = Blueprint(name="em_recommendation_api", import_name=__name__, url_prefix="/recommend/EM")
-from ..utils import EM_engine
+from ..util import EM_engine
 em_recommender = EM_engine(db)
 
 @em_recommendation_bp.route('/users', methods=['GET'])

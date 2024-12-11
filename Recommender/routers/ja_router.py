@@ -3,7 +3,7 @@ This file contains the API routes for Japanese language recommendation.
 """
 from flask_jwt_extended import jwt_required
 from flask import Blueprint, jsonify, request
-from ..utils.config import Config
+from ..util.config import Config
 import logging
 
 from ..core.ja_engine import JA_engine
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 ja_recommendation_bp = Blueprint(name="ja_recommendation_api", import_name=__name__, url_prefix="/recommend/JA")
-from ..utils import JA_engine
+from ..util import JA_engine
 ja_recommender = JA_engine(db)
 
 @ja_recommendation_bp.route('/users', methods=['GET'])

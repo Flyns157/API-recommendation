@@ -8,7 +8,7 @@ from contextlib import closing
 from .auth_database import AuthDatabase
 from .synchronizer import Synchronizer
 
-from ..utils.config import Config
+from ..util.config import Config
 
 class Database(AuthDatabase):
     """
