@@ -9,7 +9,6 @@ Classes:
 import numpy as np
 import string
 import random
-import re
 
 from ..database import Database
 
@@ -23,8 +22,8 @@ class Utils:
         generate_verification_code: Generates a random alphanumeric verification code.
     """
     
-    @classmethod
-    def generate_verification_code(cls, size: int = 6) -> str:
+    @staticmethod
+    def generate_verification_code(size: int = 6) -> str:
         """
         Generate a random alphanumeric verification code of a specified length.
 
@@ -41,8 +40,8 @@ class Utils:
         CHARS = string.ascii_letters + string.digits
         return ''.join(random.choice(CHARS) for _ in range(size))
 
-    @classmethod
-    def snake_to_camel(cls, snake_str: str) -> str:
+    @staticmethod
+    def snake_to_camel(snake_str: str) -> str:
         """
         Convertit une chaîne de caractères de snake_case à camelCase.
 
@@ -55,8 +54,8 @@ class Utils:
         components = snake_str.split('_')
         return components[0] + ''.join(x.title() for x in components[1:])
 
-    @classmethod
-    def array_avg(cls, matrices: list[np.ndarray], *args) -> np.ndarray:
+    @staticmethod
+    def array_avg(matrices: list[np.ndarray], *args) -> np.ndarray:
         """
         Calcule la moyenne d'une liste de matrices (numpy.ndarray).
 
@@ -83,10 +82,24 @@ class Utils:
         
         return average_matrix
 
-    @classmethod
-    def isiterable(cls, obj) -> bool:
+    @staticmethod
+    def isiterable(obj) -> bool:
         try:
             iter(obj)
             return True
         except:
             return False
+
+    @staticmethod
+    def generate_password(size: int = 15) -> str:
+        """
+        Generate a random password of a given size.
+
+        Parameters:
+        size (int): The length of the password to be generated. Defaults to 15.
+
+        Returns:
+        str: A randomly generated password consisting of ASCII letters and digits.
+        """
+        CHARS = string.ascii_letters + string.digits
+        return ''.join(random.choice(CHARS) for _ in range(size))
