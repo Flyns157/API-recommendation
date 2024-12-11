@@ -6,13 +6,13 @@ from torch import cosine_similarity
 from ..database import Database
 from . import recommender_engine
 from .embedding import MC_embedder
-from ... import logger
+from .. import main_logger
 
 
 class EM_engine(recommender_engine):
     def __init__(self, db: Database) -> None:
         super().__init__(db)
-        self.embedder = MC_embedder(db, logger=logger)
+        self.embedder = MC_embedder(db, logger=main_logger)
 
     def _get_embedding(self, entity_type: str, entity_id: int |str | bytes) -> np.ndarray:
         """
