@@ -20,7 +20,7 @@ def generate_verification_code(size: int = 6) -> str:
         str: A randomly generated verification code containing uppercase letters, lowercase letters, and digits.
 
     Example:
-        >>> Utils.generate_verification_code(8)
+        >>> generate_verification_code(8)
         'A3kLp9Vz'
     """
     CHARS = string.ascii_letters + string.digits

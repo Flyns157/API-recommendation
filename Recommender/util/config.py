@@ -21,3 +21,4 @@ class Config:
     MONGO_URI = os.getenv('MONGO_URI') or 'mongodb://localhost:27017/'
     MONGO_DB = os.getenv('MONGO_DB') or 'watif'
     NO_AUTH = bool(os.getenv('NO_AUTH'))
+    authjwt_secret_key = JWT_SECRET_KEY

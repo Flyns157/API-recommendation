@@ -11,6 +11,8 @@ from pydantic import BaseModel
 import logging
 import time
 
+from .util.config import Config
+
 # Initialize logging
 logging.basicConfig(
     level=logging.INFO,
@@ -22,12 +24,9 @@ logging.basicConfig(
 )
 main_logger = logging.getLogger(__name__)
 
-class Settings(BaseModel):
-    authjwt_secret_key: str = "your_secret_key"  # Change this to a more secure secret key
-
 @AuthJWT.load_config
 def get_config():
-    return Settings()
+    return Config()
 
 class RecommenderFastAPI(FastAPI):
     def __init__(self, title: str = "Recommender-FastAPI", version: str = __version__, *args, **kwargs):
