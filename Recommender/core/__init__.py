@@ -21,8 +21,6 @@ Usage:
 
 from ..database import Database
 
-import numpy as np
-import random
 
 class recommender_engine:
     """
@@ -33,7 +31,7 @@ class recommender_engine:
     Attributes:
         db (Database): Database instance used for Neo4j interactions.
     """
-    
+
     def __init__(self, db: Database) -> None:
         """
         Initializes the recommender engine with a database connection.
@@ -42,7 +40,8 @@ class recommender_engine:
             db (Database): The Database instance for accessing Neo4j data.
         """
         self.db = db
-    
+
+
     def recommend_users(self, user_id: str) -> list[str]:
         """
         Recommends users for a specified user to follow. To be implemented in a subclass.
@@ -58,6 +57,7 @@ class recommender_engine:
         """
         raise NotImplementedError('Must be implemented in subclass / child class.')
 
+
     def recommend_posts(self, user_id: str) -> list[str]:
         """
         Recommends posts for a specified user based on interests and content engagement. To be implemented in a subclass.
@@ -72,7 +72,8 @@ class recommender_engine:
             NotImplementedError: If the method is not implemented in a subclass.
         """
         raise NotImplementedError('Must be implemented in subclass / child class.')
-    
+
+
     def recommend_threads(self, user_id: str) -> list[str]:
         """
         Recommends threads for a specified user to join based on shared memberships. To be implemented in a subclass.
@@ -87,7 +88,3 @@ class recommender_engine:
             NotImplementedError: If the method is not implemented in a subclass.
         """
         raise NotImplementedError('Must be implemented in subclass / child class.')
-
-from .mc_engine import MC_engine
-from .mc_engine import MC_engine
-from .ja_engine import JA_engine

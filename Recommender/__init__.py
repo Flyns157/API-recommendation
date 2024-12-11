@@ -67,8 +67,5 @@ class RecommenderFastAPI(FastAPI):
         from .routers.ja_router import router as ja_router
         self.include_router(ja_router)
 
-        # Authentication routes
-        self.include_router(self.auth_router())
-
 
 app = RecommenderFastAPI()
