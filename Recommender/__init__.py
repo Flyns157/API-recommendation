@@ -11,7 +11,8 @@ from pydantic import BaseModel
 import logging
 import time
 
-from .util.config import Config
+# from .util.config import Settings
+
 
 # Initialize logging
 logging.basicConfig(
@@ -24,47 +25,62 @@ logging.basicConfig(
 )
 main_logger = logging.getLogger(__name__)
 
+
+class Settings(BaseModel):
+    authjwt_secret_key: str = "secret"
+
 @AuthJWT.load_config
 def get_config():
-    return Config()
+    return Settings()
+
 
 class RecommenderFastAPI(FastAPI):
     def __init__(self, title: str = "Recommender-FastAPI", version: str = __version__, *args, **kwargs):
         super().__init__(title=title, version=version, *args, **kwargs)
         self.setup()
 
-    def setup(self) -> None:
-        self.setup_logging()
-        self.setup_middleware()
-        self.setup_routes()
+        def setup_logging(self) -> None:
+            self.logger = main_logger
 
-    def setup_logging(self) -> None:
-        self.logger = main_logger
+        def setup_middleware(self) -> None:
+            @self.middleware("http")
+            async def add_process_time_header(request: Request, call_next):
+                start_time = time.perf_counter()
+                self.logger.info(f"Request: {request.method} {request.url}")  # Log the request method and URL
+                response = await call_next(request)
+                process_time = time.perf_counter() - start_time
+                response.headers["X-Process-Time"] = str(process_time)
+                self.logger.info(f"Processed {request.method} {request.url} in {process_time:.4f} secs")  # Log the processing time
+                return response
 
-    def setup_middleware(self) -> None:
-        @self.middleware("http")
-        async def add_process_time_header(request: Request, call_next):
-            start_time = time.perf_counter()
-            self.logger.info(f"Request: {request.method} {request.url}")  # Log the request method and URL
-            response = await call_next(request)
-            process_time = time.perf_counter() - start_time
-            response.headers["X-Process-Time"] = str(process_time)
-            self.logger.info(f"Processed {request.method} {request.url} in {process_time:.4f} secs")  # Log the processing time
-            return response
+        def setup_routes(self) -> None:
+            # Import and register routers
+            from .routers.auth import router as auth_router
+            self.include_router(auth_router)
+            
+            # from .routers.em_router import router as em_router
+            # self.include_router(em_router)
 
-    def setup_routes(self) -> None:
-        # Import and register routers
-        from .routers.auth import router as auth_router
-        self.include_router(auth_router)
-        
-        from .routers.em_router import router as em_router
-        self.include_router(em_router)
+            from .routers.mc_router import router as mc_router
+            self.include_router(mc_router)
 
-        from .routers.mc_router import router as mc_router
-        self.include_router(mc_router)
+            # from .routers.ja_router import router as ja_router
+            # self.include_router(ja_router)
 
-        from .routers.ja_router import router as ja_router
-        self.include_router(ja_router)
+        setup_logging(self)
+        setup_middleware(self)
+        setup_routes(self)
 
 
 app = RecommenderFastAPI()
+
+
+from fastapi_jwt_auth.exceptions import AuthJWTException
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(AuthJWTException)
+def authjwt_exception_handler(request: Request, exc: AuthJWTException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.message}
+    )

@@ -8,7 +8,7 @@ from contextlib import closing
 from .auth_database import AuthDatabase
 from .synchronizer import Synchronizer
 
-from ..util.config import Config
+from ..util.config import Settings
 
 class Database(AuthDatabase):
     """
@@ -25,10 +25,10 @@ class Database(AuthDatabase):
             neo4j_uri (str, optional): URI for connecting to Neo4j.
             neo4j_user (str, optional): Username for Neo4j authentication.
             neo4j_password (str, optional): Password for Neo4j authentication.
-            config (Config, optional): A Config object containing the database connection settings.
+            config (Settings, optional): A Settings object containing the database connection settings.
         """
         super().__init__()
-        config = kwargs.get('config', args[0] if len(args) == 1 and isinstance(args[0], Config) else None)
+        config = kwargs.get('config', args[0] if len(args) == 1 and isinstance(args[0], Settings) else None)
         if config:
             self.configurate(config)
         else:
@@ -55,13 +55,13 @@ class Database(AuthDatabase):
         except Exception as e:
             print(f"Erreur d'initialisation des connexions : {e}")
 
-    def configurate(self, config: Config = None) -> None:
+    def configurate(self, config: Settings = None) -> None:
         """
-        Initializes the `Database` instance using a Config object for optional
+        Initializes the `Database` instance using a Settings object for optional
         MongoDB and Neo4j connections.
 
         Parameters:
-            config (Config, optional): A Config object containing the database connection settings.
+            config (Settings, optional): A Settings object containing the database connection settings.
         """
         super().__init__()
         try:
@@ -96,4 +96,4 @@ class Database(AuthDatabase):
             print(f"Erreur lors de la fermeture des connexions : {e}")
 
 def get_database() -> Database:
-    return Database(Config())
+    return Database(Settings())

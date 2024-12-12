@@ -4,7 +4,7 @@ This file contains the API routes for the Monte Carlo-based recommendation engin
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_jwt_auth import AuthJWT
 
-from ..util.config import Config
+from ..util.config import Settings
 from ..core.mc_engine import MC_engine
 from ..database import get_database
 
@@ -30,7 +30,7 @@ async def recommend_users(
     Returns:
         JSON: A JSON response containing a list of recommended user IDs or an error message.
     """
-    Auth.jwt_required(not Config.NO_AUTH)
+    Auth.jwt_required(not Settings.NO_AUTH)
 
     try:
         recommendations = MC_engine(get_database()).recommend_users(user_id, follow_weight, interest_weight, limit)
@@ -54,7 +54,7 @@ async def recommend_posts(
     Returns:
         JSON: A JSON response containing a list of recommended post IDs or an error message.
     """
-    Auth.jwt_required(not Config.NO_AUTH)
+    Auth.jwt_required(not Settings.NO_AUTH)
 
     try:
         recommendations = MC_engine(get_database()).recommend_posts(user_id, interest_weight, interaction_weight, limit)
@@ -78,7 +78,7 @@ async def recommend_threads(
     Returns:
         JSON: A JSON response containing a list of recommended thread IDs or an error message.
     """
-    Auth.jwt_required(not Config.NO_AUTH)
+    Auth.jwt_required(not Settings.NO_AUTH)
 
     try:
         recommendations = MC_engine(get_database()).recommend_threads(user_id, member_weight, interest_weight, limit)

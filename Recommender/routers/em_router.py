@@ -3,7 +3,7 @@ This file contains the API routes for the EM-based recommendation engine.
 """
 from flask_jwt_extended import jwt_required
 from flask import Blueprint, jsonify, request
-from ..util.config import Config
+from ..util.config import Settings
 import logging
 
 from ..core.em_engine import EM_engine
@@ -17,7 +17,7 @@ from ..util import EM_engine
 em_recommender = EM_engine(db)
 
 @em_recommendation_bp.route('/users', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
+@jwt_required(not Settings.NO_AUTH)
 def recommend_users():
     """
     Recommend user profiles based on shared interests and mutual connections.
@@ -47,7 +47,7 @@ def recommend_users():
         return jsonify({"error": str(e)}), 500
 
 @em_recommendation_bp.route('/posts', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
+@jwt_required(not Settings.NO_AUTH)
 def recommend_posts():
     """
     Recommend posts based on shared interests and user interactions.
@@ -77,7 +77,7 @@ def recommend_posts():
         return jsonify({"error": str(e)}), 500
 
 @em_recommendation_bp.route('/threads', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
+@jwt_required(not Settings.NO_AUTH)
 def recommend_threads():
     """
     Recommend threads for a user based on shared memberships and interests.

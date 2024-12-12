@@ -3,7 +3,7 @@ This file contains the API routes for Japanese language recommendation.
 """
 from flask_jwt_extended import jwt_required
 from flask import Blueprint, jsonify, request
-from ..util.config import Config
+from ..util.config import Settings
 import logging
 
 from ..core.ja_engine import JA_engine
@@ -17,7 +17,7 @@ from ..util import JA_engine
 ja_recommender = JA_engine(db)
 
 @ja_recommendation_bp.route('/users', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
+@jwt_required(not Settings.NO_AUTH)
 def recommend_users():
     """
     Recommend user profiles based on shared interests and mutual connections.
@@ -51,7 +51,7 @@ def recommend_users():
         return jsonify({"error": str(e)}), 500
 
 @ja_recommendation_bp.route('/posts', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
+@jwt_required(not Settings.NO_AUTH)
 def recommend_posts():
     """
     Recommend posts based on shared interests and user interactions.
