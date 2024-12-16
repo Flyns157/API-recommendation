@@ -28,8 +28,8 @@ async def recommend_users(
     user_id: str = Query(..., description="The ID of the user requesting recommendations."),
     follow_weight: float = Query(0.5, description="The weight given to mutual followers in scoring."),
     interest_weight: float = Query(0.5, description="The weight given to shared interests in scoring."),
-    current_user: str = Depends(get_current_user)
-) -> list[str]:
+    # current_user: str = Depends(get_current_user)
+) -> dict[str, list[str]]:
     """
     Recommend user profiles based on shared interests and mutual connections.
     """
@@ -41,6 +41,7 @@ async def recommend_users(
         return {"recommended_users": recommendations}
     except Exception as e:
         main_logger.error(f"Error in recommend_users: {e}")
+        # recommendations = JA_engine(get_database()).recommend_users(user_id, follow_weight, interest_weight)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/posts")
@@ -48,8 +49,8 @@ async def recommend_posts(
     user_id: str = Query(..., description="The ID of the user requesting recommendations."),
     interest_weight: float = Query(0.7, description="The weight given to shared interests in scoring."),
     interaction_weight: float = Query(0.3, description="The weight given to user interactions (likes, comments) in scoring."),
-    current_user: str = Depends(get_current_user)
-) -> list[str]:
+    # current_user: str = Depends(get_current_user)
+) -> dict[str, list[str]]:
     """
     Recommend posts based on shared interests and user interactions.
     """
@@ -61,4 +62,5 @@ async def recommend_posts(
         return {"recommended_posts": recommendations}
     except Exception as e:
         main_logger.error(f"Error in recommend_posts: {e}")
+        # recommendations = JA_engine(get_database()).recommend_posts(user_id)
         raise HTTPException(status_code=500, detail=str(e))

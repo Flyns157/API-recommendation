@@ -1,9 +1,9 @@
 """
 __init__.py
 
-This file is the entry point of the API. It initializes the FastAPI app and registers the routers.
+This file is the entry point of the API. It initializes the FastAPI app.
 """
-__version__ = "0.3.1"
+__version__ = "0.3.3"
 
 from fastapi import FastAPI, Request
 import logging
@@ -45,7 +45,6 @@ class RecommenderFastAPI(FastAPI):
         def setup_routes() -> None:
             # from .auth import bp as auth_bp
             # self.register_blueprint(auth_bp)
-
 
             # Import and register routers
             from .routers import mc_router, em_router, ja_router
