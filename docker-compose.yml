@@ -20,15 +20,15 @@ services:
     volumes:
       - mongo-data:/data/db
 
-  api:
-      build:
-        context: .
-        dockerfile: docker/Dockerfile.prod
-      ports:
-        - "8000:8000"
-      depends_on:
-        - neo4j
-        - mongodb
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.prod
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - neo4j
+  #     - mongodb
 
 volumes:
   mongo-data:
