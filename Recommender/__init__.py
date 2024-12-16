@@ -3,7 +3,7 @@ __init__.py
 
 This file is the entry point of the API. It initializes the FastAPI app and registers the routers.
 """
-__version__ = "0.3.2"
+__version__ = "0.3.1"
 
 from fastapi import FastAPI, Request
 import logging

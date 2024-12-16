@@ -3,13 +3,11 @@ This file contains the API routes for the EM-based (embedding) recommendation en
 """
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-import logging
 
 from ..core.em_engine import EM_engine
 from ..database import get_database
 from .. import main_logger
 
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/recommend/EM", tags=["EM-based Recommendation (embedding)"])
 

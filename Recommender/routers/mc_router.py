@@ -5,13 +5,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..core.mc_engine import MC_engine
 from ..database import get_database
-
 from .. import main_logger
 
 
-db = get_database()
-
-router = APIRouter(prefix="/mc_recommendation", tags=["Monte Carlo-based Recommendation"])
+router = APIRouter(prefix="/recommend/MC", tags=["Monte Carlo-based Recommendation"])
 
 
 @router.get("/users")
