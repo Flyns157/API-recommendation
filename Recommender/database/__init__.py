@@ -34,6 +34,7 @@ class Database(AuthDatabase):
         else:
             self.initialize(*args, **kwargs)
 
+
     def initialize(self, mongo_uri: str = None, mongo_db: str = None, neo4j_uri: str = None, neo4j_user: str = None, neo4j_password: str = None) -> None:
         """
         Initializes the `Database` instance with optional MongoDB and Neo4j connections.
@@ -54,6 +55,7 @@ class Database(AuthDatabase):
             self.sync = Synchronizer(self.mongo_db, self.neo4j_driver) if mongo_uri and mongo_db and neo4j_uri else Synchronizer()
         except Exception as e:
             print(f"Erreur d'initialisation des connexions : {e}")
+
 
     def configurate(self, config: Config = None) -> None:
         """
@@ -80,6 +82,7 @@ class Database(AuthDatabase):
         except Exception as e:
             print(f"Error initializing connections: {e}")
 
+
     def close(self) -> None:
         """
         Closes the database connections for MongoDB and Neo4j.
@@ -94,6 +97,7 @@ class Database(AuthDatabase):
                 self.neo4j_driver.close()
         except Exception as e:
             print(f"Erreur lors de la fermeture des connexions : {e}")
+
 
 def get_database() -> Database:
     return Database(Config())

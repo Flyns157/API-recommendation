@@ -1,30 +1,26 @@
 """
-This file contains the API routes for the EM-based recommendation engine.
+This file contains the API routes for the EM-based (embedding) recommendation engine.
 """
-from flask_jwt_extended import jwt_required
-from flask import Blueprint, jsonify, request
-from ..utils.config import Config
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 import logging
 
 from ..core.em_engine import EM_engine
-from .. import db
+from ..database import get_database
+
 
 logger = logging.getLogger(__name__)
 
+router = APIRouter(prefix="/recommend/EM")
 
-em_recommendation_bp = Blueprint(name="em_recommendation_api", import_name=__name__, url_prefix="/recommend/EM")
-from ..utils import EM_engine
-em_recommender = EM_engine(db)
 
-@em_recommendation_bp.route('/users', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
-def recommend_users():
+@router.get("/users")
+async def recommend_users(
+    user_id: str = Query(..., description="The ID of the user requesting recommendations."),
+    limit: int = Query(10, description="The size of the recommendation.")
+) -> list[str]:
     """
     Recommend user profiles based on shared interests and mutual connections.
-
-    Query Parameters:
-        user_id (str): The ID of the user requesting recommendations.
-        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended user IDs or an error message.
@@ -33,28 +29,23 @@ def recommend_users():
             400: Bad request, missing required parameters.
             500: Server error, failed to generate recommendations.
     """
-    user_id = request.args.get('user_id')
-    top_n = int(request.args.get('limit', 10))
-    
     if not user_id:
-        return jsonify({"error": "Missing user_id parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = em_recommender.recommend_users(user_id, top_n)
-        return jsonify({"recommended_users": recommendations})
+        recommendations = EM_engine(get_database()).recommend_users(user_id, limit)
+        return JSONResponse(content={"recommended_users": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_users: {e}")
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@em_recommendation_bp.route('/posts', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
-def recommend_posts():
+@router.get("/posts")
+async def recommend_posts(
+    user_id: str = Query(..., description="The ID of the user requesting recommendations."),
+    limit: int = Query(10, description="The size of the recommendation.")
+) -> list[str]:
     """
     Recommend posts based on shared interests and user interactions.
-
-    Query Parameters:
-        user_id (str): The ID of the user requesting recommendations.
-        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended post IDs or an error message.
@@ -63,28 +54,23 @@ def recommend_posts():
             400: Bad request, missing required parameters.
             500: Server error, failed to generate recommendations.
     """
-    user_id = request.args.get('user_id')
-    top_n = int(request.args.get('limit', 10))
-    
     if not user_id:
-        return jsonify({"error": "Missing user_id parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = em_recommender.recommend_posts(user_id, top_n)
-        return jsonify({"recommended_posts": recommendations})
+        recommendations = EM_engine(get_database()).recommend_posts(user_id, limit)
+        return JSONResponse(content={"recommended_posts": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_posts: {e}")
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
-@em_recommendation_bp.route('/threads', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
-def recommend_threads():
+@router.get("/threads")
+async def recommend_threads(
+    user_id: str = Query(..., description="The ID of the user requesting recommendations."),
+    limit: int = Query(10, description="The size of the recommendation.")
+) -> list[str]:
     """
     Recommend threads for a user based on shared memberships and interests.
-
-    Query Parameters:
-        user_id (str): The ID of the user requesting recommendations.
-        limit (int, optional): The size of the recommendation.
 
     Returns:
         JSON: A JSON response containing a list of recommended thread IDs or an error message.
@@ -93,15 +79,12 @@ def recommend_threads():
             400: Bad request, missing required parameters.
             500: Server error, failed to generate recommendations.
     """
-    user_id = request.args.get('user_id')
-    top_n = int(request.args.get('limit', 10))
-    
     if not user_id:
-        return jsonify({"error": "Missing user_id parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = em_recommender.recommend_threads(user_id, top_n)
-        return jsonify({"recommended_threads": recommendations})
+        recommendations = EM_engine(get_database()).recommend_threads(user_id, limit)
+        return JSONResponse(content={"recommended_threads": recommendations})
     except Exception as e:
         logger.error(f"Error in recommend_threads: {e}")
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))

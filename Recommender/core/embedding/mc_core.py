@@ -2,7 +2,7 @@ import logging
 from threading import Lock, current_thread, local
 from time import perf_counter
 import numpy as np
-from Recommender.utils import Utils
+from Recommender.utils import array_avg
 from . import watif_integrated_embedder
 from ...database import Database  
 from datetime import datetime, timedelta
@@ -266,8 +266,8 @@ class MC_embedder(watif_integrated_embedder):
                             thread_name, user['_id'], len(user['interests']))
         
         try:
-            result = Utils.array_avg(
-                Utils.array_avg(
+            result = array_avg(
+                array_avg(
                     self.get_interest_embedding(
                         id_interest,
                         *args, **kwargs
@@ -289,7 +289,8 @@ class MC_embedder(watif_integrated_embedder):
             self.logger.error("[Thread %s] Error generating base embedding for user %s: %s", 
                             thread_name, user['_id'], str(e), exc_info=True)
             raise
-    
+
+
     def _generate_full_user_embedding(self, user: dict, follow_weight: float,
                                     interest_weight: float, description_weight: float,
                                     *args, **kwargs) -> np.ndarray:
@@ -315,8 +316,8 @@ class MC_embedder(watif_integrated_embedder):
                             thread_name, user['_id'], len(user['interests']), len(user['follow']))
         
         try:
-            result = Utils.array_avg(
-                Utils.array_avg(
+            result = array_avg(
+                array_avg(
                     self.get_interest_embedding(
                         id_interest,
                         *args, **kwargs
@@ -327,7 +328,7 @@ class MC_embedder(watif_integrated_embedder):
                     user['description'],
                     *args, **kwargs
                 ) * description_weight,
-                Utils.array_avg(
+                array_avg(
                     self.get_user_embedding(
                         id_follow,
                         follow_weight=follow_weight,
@@ -348,6 +349,7 @@ class MC_embedder(watif_integrated_embedder):
             self.logger.error("[Thread %s] Error generating full embedding for user %s: %s", 
                             thread_name, user['_id'], str(e), exc_info=True)
             raise
+
 
     def get_post_embedding(self, id_post: str | int | bytes, key_weight: float = 0.35, title_weight: float = 0.35, content_weight: float = 0.2, author_weight: float = 0.1, *args, **kwargs) -> np.ndarray:
         """
@@ -408,8 +410,8 @@ class MC_embedder(watif_integrated_embedder):
                                 thread_name, id_post, len(post['keys']))
             
             self.logger.debug("[Thread %s] Generating embeddings for post components", thread_name)
-            embedded_post = Utils.array_avg(
-                Utils.array_avg(
+            embedded_post = array_avg(
+                array_avg(
                     self.get_key_embedding(
                         id_key, 
                         *args, **kwargs
@@ -455,6 +457,7 @@ class MC_embedder(watif_integrated_embedder):
             duration = perf_counter() - start_time
             self.logger.info("[Thread %s] Completed post embedding generation for %s in %.2f seconds", 
                             thread_name, id_post, duration)
+
 
     def get_thread_embedding(self, id_thread: str | int | bytes, author_weight: float = 0.1, name_weight: float = 0.1, member_weight: float = 0.4, post_weight: float = 0.4, *args, **kwargs) -> np.ndarray:
         """
@@ -507,7 +510,7 @@ class MC_embedder(watif_integrated_embedder):
             self.logger.debug("[Thread %s] Retrieving thread data and generating embeddings", thread_name)
             thread = self.db.mongo_db['threads'].find_one({"_id": id_thread})
             
-            embedded_thread = Utils.array_avg(
+            embedded_thread = array_avg(
                 self.get_user_embedding(
                     thread['id_author'], 
                     *args, **kwargs
@@ -517,14 +520,14 @@ class MC_embedder(watif_integrated_embedder):
                     prompt = 'Discussion name:\n',
                     *args, **kwargs
                 ) * name_weight,
-                Utils.array_avg(
+                array_avg(
                     self.get_user_embedding(
                         id_member,
                         *args, **kwargs
                     )
                     for id_member in thread['members']
                 ) * member_weight,
-                Utils.array_avg(
+                array_avg(
                     self.get_post_embedding(
                         post['idPost'],
                         *args, **kwargs
@@ -556,6 +559,7 @@ class MC_embedder(watif_integrated_embedder):
             duration = perf_counter() - start_time
             self.logger.info("[Thread %s] Completed thread embedding generation for %s in %.2f seconds",
                             thread_name, id_thread, duration)
+
 
     def get_key_embedding(self, id_key: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -616,6 +620,7 @@ class MC_embedder(watif_integrated_embedder):
             duration = perf_counter() - start_time
             self.logger.info("[Thread %s] Completed key embedding generation for %s in %.2f seconds",
                             thread_name, id_key, duration)
+
 
     def get_interest_embedding(self, id_interest: str | int | bytes, *args, **kwargs) -> np.ndarray:
         """
@@ -696,6 +701,7 @@ class MC_embedder(watif_integrated_embedder):
             self.logger.info("[Thread %s] Completed interest embedding generation for %s in %.2f seconds", 
                             thread_name, id_interest, duration)
 
+
     def get_user_embeddings(self, *args, **kwargs) -> dict:
         """
         Retrieves embeddings for all users in the database.
@@ -710,6 +716,7 @@ class MC_embedder(watif_integrated_embedder):
         return {user:
                 self.get_user_embeddings(user, *args, **kwargs)
                 for user in self.db.mongo_db['users'].find(projection={'_id': 1})}
+
 
     def get_post_embeddings(self, *args, **kwargs) -> dict:
         """
@@ -726,6 +733,7 @@ class MC_embedder(watif_integrated_embedder):
                 self.get_post_embedding(post, *args, **kwargs)
                 for post in self.db.mongo_db['posts'].find(projection={'_id': 1})}
 
+
     def get_thread_embeddings(self, *args, **kwargs) -> dict:
         """
         Retrieves embeddings for all threads in the database.
@@ -740,6 +748,7 @@ class MC_embedder(watif_integrated_embedder):
         return {post:
                 self.get_post_embedding(post, *args, **kwargs)
                 for post in self.db.mongo_db['threads'].find(projection={'_id': 1})}
+
 
     def get_interest_embeddings(self, *args, **kwargs) -> dict:
         """
@@ -756,6 +765,7 @@ class MC_embedder(watif_integrated_embedder):
                 self.get_interest_embedding(interest, *args, **kwargs)
                 for interest in self.db.mongo_db['interests'].find(projection={'_id': 1})}
 
+
     def get_key_embeddings(self, *args, **kwargs) -> dict:
         """
         Retrieves embeddings for all keywords in the database.
@@ -771,6 +781,7 @@ class MC_embedder(watif_integrated_embedder):
                 self.get_key_embedding(key, *args, **kwargs)
                 for key in self.db.mongo_db['keys'].find(projection={'_id': 1})}
 
+
     def _get_embedding(self, entity_type: str, entity_id: str | int | bytes) -> np.ndarray | None:
         """
         Retrieves embedding for a specific entity from the database.
@@ -784,6 +795,7 @@ class MC_embedder(watif_integrated_embedder):
         """
         entity = self.db.mongo_db[entity_type].find_one({"_id": entity_id}, {"embedding": 1})
         return np.array(entity.get("embedding")) if entity else None
+
 
     def encode(self, entity_type: str, entity_id: str | int | bytes, show_progress_bar: bool = True, *args, **kwargs) -> np.ndarray:
         """

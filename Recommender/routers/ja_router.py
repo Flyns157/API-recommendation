@@ -1,85 +1,64 @@
 """
-This file contains the API routes for Japanese language recommendation.
+This file contains the API routes for Jean-Alexis Recommendation Engine.
 """
-from flask_jwt_extended import jwt_required
-from flask import Blueprint, jsonify, request
-from ..utils.config import Config
-import logging
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.security import OAuth2PasswordBearer
 
 from ..core.ja_engine import JA_engine
-from .. import db
+from ..database import get_database
+from ..utils.config import Config
 
-logger = logging.getLogger(__name__)
+from .. import main_logger
 
 
-ja_recommendation_bp = Blueprint(name="ja_recommendation_api", import_name=__name__, url_prefix="/recommend/JA")
-from ..utils import JA_engine
-ja_recommender = JA_engine(db)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-@ja_recommendation_bp.route('/users', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
-def recommend_users():
+router = APIRouter(prefix="/recommend/JA", tags=["Japanese Recommendation"])
+
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    # This function would contain the logic to verify the user token
+    # For now, we just simulate it by returning the token as the user
+    if Config.NO_AUTH:
+        return None
+    return token
+
+@router.get("/users")
+async def recommend_users(
+    user_id: str = Query(..., description="The ID of the user requesting recommendations."),
+    follow_weight: float = Query(0.5, description="The weight given to mutual followers in scoring."),
+    interest_weight: float = Query(0.5, description="The weight given to shared interests in scoring."),
+    current_user: str = Depends(get_current_user)
+) -> list[str]:
     """
     Recommend user profiles based on shared interests and mutual connections.
-
-    Query Parameters:
-        user_id (str): The ID of the user requesting recommendations.
-        follow_weight (float, optional): The weight given to mutual followers in scoring, default is 0.5.
-        interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.5.
-        limit (int, optional): The size of the recommendation.
-
-    Returns:
-        JSON: A JSON response containing a list of recommended user IDs or an error message.
-        Status Code:
-            200: Success, returns recommended users.
-            400: Bad request, missing required parameters.
-            500: Server error, failed to generate recommendations.
     """
-    user_id = request.args.get('user_id')
-    follow_weight = float(request.args.get('follow_weight', 0.5))
-    interest_weight = float(request.args.get('interest_weight', 0.5))
-    # limit = int(request.args.get('limit', 10))
-    
     if not user_id:
-        return jsonify({"error": "Missing user_id parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = ja_recommender.recommend_users(user_id, follow_weight, interest_weight)
-        return jsonify({"recommended_users": recommendations})
+        recommendations = JA_engine(get_database()).recommend_users(user_id, follow_weight, interest_weight)
+        return {"recommended_users": recommendations}
     except Exception as e:
-        logger.error(f"Error in recommend_users: {e}")
-        return jsonify({"error": str(e)}), 500
+        main_logger.error(f"Error in recommend_users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@ja_recommendation_bp.route('/posts', methods=['GET'])
-@jwt_required(not Config.NO_AUTH)
-def recommend_posts():
+@router.get("/posts")
+async def recommend_posts(
+    user_id: str = Query(..., description="The ID of the user requesting recommendations."),
+    interest_weight: float = Query(0.7, description="The weight given to shared interests in scoring."),
+    interaction_weight: float = Query(0.3, description="The weight given to user interactions (likes, comments) in scoring."),
+    current_user: str = Depends(get_current_user)
+) -> list[str]:
     """
     Recommend posts based on shared interests and user interactions.
-
-    Query Parameters:
-        user_id (str): The ID of the user requesting recommendations.
-        interest_weight (float, optional): The weight given to shared interests in scoring, default is 0.7.
-        interaction_weight (float, optional): The weight given to user interactions (likes, comments) in scoring, default is 0.3.
-        limit (int, optional): The size of the recommendation.
-
-    Returns:
-        JSON: A JSON response containing a list of recommended post IDs or an error message.
-        Status Code:
-            200: Success, returns recommended posts.
-            400: Bad request, missing required parameters.
-            500: Server error, failed to generate recommendations.
     """
-    user_id = request.args.get('user_id')
-    # interest_weight = float(request.args.get('interest_weight', 0.7))
-    # interaction_weight = float(request.args.get('interaction_weight', 0.3))
-    # limit = int(request.args.get('limit', 10))
-    
     if not user_id:
-        return jsonify({"error": "Missing user_id parameter"}), 400
+        raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = ja_recommender.recommend_posts(user_id)
-        return jsonify({"recommended_posts": recommendations})
+        recommendations = JA_engine(get_database()).recommend_posts(user_id)
+        return {"recommended_posts": recommendations}
     except Exception as e:
-        logger.error(f"Error in recommend_posts: {e}")
-        return jsonify({"error": str(e)}), 500
+        main_logger.error(f"Error in recommend_posts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
