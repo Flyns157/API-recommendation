@@ -7,11 +7,11 @@ import logging
 
 from ..core.em_engine import EM_engine
 from ..database import get_database
-
+from .. import main_logger
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/recommend/EM")
+router = APIRouter(prefix="/recommend/EM", tags=["EM-based Recommendation (embedding)"])
 
 
 @router.get("/users")
@@ -36,7 +36,7 @@ async def recommend_users(
         recommendations = EM_engine(get_database()).recommend_users(user_id, limit)
         return JSONResponse(content={"recommended_users": recommendations})
     except Exception as e:
-        logger.error(f"Error in recommend_users: {e}")
+        main_logger.error(f"Error in recommend_users: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/posts")
@@ -61,7 +61,7 @@ async def recommend_posts(
         recommendations = EM_engine(get_database()).recommend_posts(user_id, limit)
         return JSONResponse(content={"recommended_posts": recommendations})
     except Exception as e:
-        logger.error(f"Error in recommend_posts: {e}")
+        main_logger.error(f"Error in recommend_posts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/threads")
@@ -86,5 +86,5 @@ async def recommend_threads(
         recommendations = EM_engine(get_database()).recommend_threads(user_id, limit)
         return JSONResponse(content={"recommended_threads": recommendations})
     except Exception as e:
-        logger.error(f"Error in recommend_threads: {e}")
+        main_logger.error(f"Error in recommend_threads: {e}")
         raise HTTPException(status_code=500, detail=str(e))

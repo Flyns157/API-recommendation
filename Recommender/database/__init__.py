@@ -10,6 +10,7 @@ from .synchronizer import Synchronizer
 
 from ..utils.config import Config
 
+
 class Database(AuthDatabase):
     """
     A class for managing database connections and synchronizing data between MongoDB and Neo4j.

@@ -13,7 +13,7 @@ from .. import main_logger
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-router = APIRouter(prefix="/recommend/JA", tags=["Japanese Recommendation"])
+router = APIRouter(prefix="/recommend/JA", tags=["Jean-Alexis Recommendation"])
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
