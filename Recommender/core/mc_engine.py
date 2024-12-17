@@ -37,17 +37,18 @@ class MC_engine(recommender_engine):
             raise ValueError('The sum of arguments follow_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:INTERESTED_BY]->(i:Interest)<-[:INTERESTED_BY]-(u2:User)
-                WHERE u2.id_user <> $user_id
+                MATCH (u:users {idUser: $user_id})-[:INTERESTED_BY]->(i:interests)<-[:INTERESTED_BY]-(u2:users)
+                WHERE u2.idUser <> $user_id
                 WITH u2, COUNT(i) AS common_interests
-                MATCH (u)-[:FOLLOWS]->(f:User)<-[:FOLLOWS]-(u2)
+                MATCH (u)-[:FOLLOWS]->(f:users)<-[:FOLLOWS]-(u2)
                 WITH u2, common_interests, COUNT(f) AS common_follows
-                RETURN u2.id_user AS user_id,
+                RETURN u2.idUser AS user_id,
                        ($follow_weight * common_follows + $interest_weight * common_interests) AS score
                 ORDER BY score DESC
                 LIMIT $limit
             """, user_id=user_id, follow_weight=follow_weight, interest_weight=interest_weight, limit=limit)
-            return [record["user_id"] for record in scores]
+            return scores.values()
+
 
     def recommend_posts(self, user_id: str, interest_weight: float = 0.7, interaction_weight: float = 0.3, limit: int = 10) -> list[str]:
         """
@@ -65,7 +66,7 @@ class MC_engine(recommender_engine):
             raise ValueError('The sum of arguments interaction_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:INTERESTED_BY]->(i:Interest)<-[:HAS_KEY]-(p:Post)
+                MATCH (u:users {idUser: $user_id})-[:INTERESTED_BY]->(i:interests)<-[:HAS_KEY]-(p:Post)
                 WITH p, COUNT(i) AS interest_score
                 OPTIONAL MATCH (u)-[:LIKES|:COMMENTED_ON]->(p)
                 WITH p, interest_score, COUNT(u) AS interaction_score
@@ -74,7 +75,7 @@ class MC_engine(recommender_engine):
                 ORDER BY score DESC
                 LIMIT $limit
             """, user_id=user_id, interest_weight=interest_weight, interaction_weight=interaction_weight, limit=limit)
-            return [record["post_id"] for record in scores]
+            return [record.value()[0] for record in scores]
 
     def recommend_threads(self, user_id: str, member_weight: float = 0.6, interest_weight: float = 0.4, limit: int = 10) -> list[str]:
         """
@@ -92,13 +93,13 @@ class MC_engine(recommender_engine):
             raise ValueError('The sum of arguments member_weight and interest_weight must be 1.0')
         with self.db.neo4j_driver.session() as session:
             scores = session.run("""
-                MATCH (u:User {id_user: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:User)
+                MATCH (u:users {idUser: $user_id})-[:MEMBER_OF]->(t:Thread)<-[:MEMBER_OF]-(u2:users)
                 WITH t, COUNT(u2) AS member_score
-                MATCH (u)-[:INTERESTED_BY]->(i:Interest)<-[:HAS_KEY]-(t)
+                MATCH (u)-[:INTERESTED_BY]->(i:interests)<-[:HAS_KEY]-(t)
                 WITH t, member_score, COUNT(i) AS interest_score
                 RETURN t.id_thread AS thread_id,
                        ($member_weight * member_score + $interest_weight * interest_score) AS score
                 ORDER BY score DESC
                 LIMIT $limit
             """, user_id=user_id, member_weight=member_weight, interest_weight=interest_weight, limit=limit)
-            return [record["thread_id"] for record in scores]
+            return [record.value()[0] for record in scores]

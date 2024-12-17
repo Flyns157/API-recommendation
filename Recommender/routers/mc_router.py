@@ -17,7 +17,7 @@ async def recommend_users(
     follow_weight: float = Query(0.5, description="Weight for mutual followers in scoring."),
     interest_weight: float = Query(0.5, description="Weight for shared interests in scoring."),
     limit: int = Query(10, description="Size of the recommendation."),
-) -> list[str]:
+) -> dict[str, list[str]]:
     """
     Recommend user profiles based on shared interests and mutual connections.
 
@@ -39,7 +39,7 @@ async def recommend_posts(
     interest_weight: float = Query(0.7, description="Weight for shared interests in scoring."),
     interaction_weight: float = Query(0.3, description="Weight for user interactions in scoring."),
     limit: int = Query(10, description="Size of the recommendation."),
-) -> list[str]:
+) -> dict[str, list[str]]:
     """
     Recommend posts based on shared interests and user interactions.
 
@@ -61,7 +61,7 @@ async def recommend_threads(
     member_weight: float = Query(0.6, description="Weight for shared memberships in scoring."),
     interest_weight: float = Query(0.4, description="Weight for shared interests in scoring."),
     limit: int = Query(10, description="Size of the recommendation."),
-) -> list[str]:
+) -> dict[str, list[str]]:
     """
     Recommend threads for a user based on shared memberships and interests.
 
