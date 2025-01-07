@@ -28,39 +28,53 @@ async def recommend_users(
     user_id: str = Query(..., description="The ID of the user requesting recommendations."),
     follow_weight: float = Query(0.5, description="The weight given to mutual followers in scoring."),
     interest_weight: float = Query(0.5, description="The weight given to shared interests in scoring."),
-    # current_user: str = Depends(get_current_user)
+    page: int = Query(1, description="The page number for pagination."),
+    page_size: int = Query(10, description="The number of recommendations per page.")
 ) -> dict[str, list[str]]:
     """
-    Recommend user profiles based on shared interests and mutual connections.
+    Recommend user profiles based on shared interests and mutual connections with pagination.
     """
     if not user_id:
         raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
         recommendations = JA_engine(get_database()).recommend_users(user_id, follow_weight, interest_weight)
-        return {"recommended_users": recommendations}
+        
+        # Implement pagination
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        paginated_recommendations = recommendations[start_index:end_index]
+
+        return {"recommended_users": paginated_recommendations}
     except Exception as e:
         main_logger.error(f"Error in recommend_users: {e}")
-        # recommendations = JA_engine(get_database()).recommend_users(user_id, follow_weight, interest_weight)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/posts")
 async def recommend_posts(
     user_id: str = Query(..., description="The ID of the user requesting recommendations."),
     interest_weight: float = Query(0.7, description="The weight given to shared interests in scoring."),
     interaction_weight: float = Query(0.3, description="The weight given to user interactions (likes, comments) in scoring."),
-    # current_user: str = Depends(get_current_user)
+    page: int = Query(1, description="The page number for paginated results."),
+    page_size: int = Query(10, description="The number of recommendations to return per page."),
 ) -> dict[str, list[str]]:
     """
     Recommend posts based on shared interests and user interactions.
+    Pagination is implemented to manage the number of results returned.
     """
     if not user_id:
         raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
         recommendations = JA_engine(get_database()).recommend_posts(user_id)
-        return {"recommended_posts": recommendations}
+        
+        # Implement pagination
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        paginated_recommendations = recommendations[start_index:end_index]
+
+        return {"recommended_posts": paginated_recommendations}
     except Exception as e:
         main_logger.error(f"Error in recommend_posts: {e}")
-        # recommendations = JA_engine(get_database()).recommend_posts(user_id)
         raise HTTPException(status_code=500, detail=str(e))
