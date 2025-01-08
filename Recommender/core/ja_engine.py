@@ -55,7 +55,7 @@ class JA_engine(recommender_engine):
             ).single()
 
             users = session.run(
-                "MATCH (u:users) WHERE u.idUser <> $id_user RETURN u",
+                "MATCH (u:users) WHERE u.idUser <> $id_user RETURN u LIMIT 20",
                 id_user=id_user
             )
 
