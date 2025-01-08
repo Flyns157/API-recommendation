@@ -67,14 +67,10 @@ async def recommend_posts(
         raise HTTPException(status_code=400, detail="Missing user_id parameter")
 
     try:
-        recommendations = JA_engine(get_database()).recommend_posts(user_id)
-        
-        # Implement pagination
         start_index = (page - 1) * page_size
-        end_index = start_index + page_size
-        paginated_recommendations = recommendations[start_index:end_index]
+        recommendations = JA_engine(get_database()).recommend_posts(user_id,start_index,page_size)
 
-        return {"recommended_posts": paginated_recommendations}
+        return {"recommended_posts": recommendations}
     except Exception as e:
         main_logger.error(f"Error in recommend_posts: {e}")
         raise HTTPException(status_code=500, detail=str(e))

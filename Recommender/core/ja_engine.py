@@ -90,20 +90,22 @@ class JA_engine(recommender_engine):
 
             return sorted(scores, key=scores.get, reverse=True)
 
-    def recommend_posts(self, id_user: str) -> list[str]:
+    def recommend_posts(self, id_user: str,start_index : int, page_size:int) -> list[str]:
         """
         Generate post recommendations for a specific user based on hashtags and interests.
 
         Args:
             id_user (str): The ID of the user.
-
+            start_index (int) : The starting index for the pagination.
+            page_size (int) : The size of the page.
         Returns:
             list: A sorted list of recommended post IDs.
         """
         with self.db.neo4j_driver.session() as session:
             posts = session.run(
-                "MATCH (u:users),(p:posts) WHERE u.idUser <> $id_user RETURN p.idPost",
-                id_user=str(id_user)
+                "MATCH (u:users),(p:posts) WHERE u.idUser <> $id_user RETURN p.idPost"+
+                " SKIP $i LIMIT $limit",
+                id_user=str(id_user), i=start_index,limit=page_size
             ).value()
 
             user_hashtags = self.get_hastags(id_user)
