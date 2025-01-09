@@ -7,6 +7,8 @@ import numpy as np
 import string
 import random
 
+from .. import pwd_context
+
 
 def generate_verification_code(size: int = 6) -> str:
     """
@@ -88,3 +90,11 @@ def generate_password(size: int = 15) -> str:
     """
     CHARS = string.ascii_letters + string.digits
     return ''.join(random.choice(CHARS) for _ in range(size))
+
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password):
+    return pwd_context.hash(password)

@@ -3,12 +3,17 @@ __init__.py
 
 This file is the entry point of the API. It initializes the FastAPI app.
 """
-__version__ = "0.3.3"
+__version__ = "0.3.4"
 
 from fastapi import FastAPI, Request
+from fastapi.security import OAuth2PasswordBearer
+from passlib.context import CryptContext
 import logging
 import time
 
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO,
@@ -47,10 +52,12 @@ class RecommenderFastAPI(FastAPI):
             # self.register_blueprint(auth_bp)
 
             # Import and register routers
-            from .routers import mc_router, em_router, ja_router
-            self.include_router(mc_router)
-            self.include_router(em_router)
+            from .routers import auth_router, mc_router, em_router, ja_router
+            self.include_router(auth_router)
+
             self.include_router(ja_router)
+            # self.include_router(mc_router)
+            # self.include_router(em_router)
 
 
         setup_logging()

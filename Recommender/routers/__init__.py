@@ -23,8 +23,11 @@ from .em_router import router as em_router
 from .mc_router import router as mc_router
 from .ja_router import router as ja_router
 
+from .auth import router as auth_router
+
 __all__ = [
     "em_router",
     "mc_router",
-    "ja_router"
+    "ja_router",
+    "auth_router"
 ]

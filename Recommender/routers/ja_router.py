@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from ..core.ja_engine import JA_engine
 from ..database import get_database
 from ..utils.config import Config
+from ..auth import get_current_user
 
 from .. import main_logger
 
@@ -29,7 +30,8 @@ async def recommend_users(
     follow_weight: float = Query(0.5, description="The weight given to mutual followers in scoring."),
     interest_weight: float = Query(0.5, description="The weight given to shared interests in scoring."),
     page: int = Query(1, description="The page number for pagination."),
-    page_size: int = Query(10, description="The number of recommendations per page.")
+    page_size: int = Query(10, description="The number of recommendations per page."),
+    current_user = Depends(get_current_user)
 ) -> dict[str, list[str]]:
     """
     Recommend user profiles based on shared interests and mutual connections with pagination.
@@ -58,6 +60,7 @@ async def recommend_posts(
     interaction_weight: float = Query(0.3, description="The weight given to user interactions (likes, comments) in scoring."),
     page: int = Query(1, description="The page number for paginated results."),
     page_size: int = Query(10, description="The number of recommendations to return per page."),
+    current_user = Depends(get_current_user)
 ) -> dict[str, list[str]]:
     """
     Recommend posts based on shared interests and user interactions.

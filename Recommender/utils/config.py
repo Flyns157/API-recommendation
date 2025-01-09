@@ -14,6 +14,8 @@ class Config:
     SECURITY_PASSWORD_SALT = os.getenv('SECURITY_PASSWORD_SALT') if os.getenv('SECURITY_PASSWORD_SALT') and os.getenv('SECURITY_PASSWORD_SALT').lower() != 'auto' else secrets.token_hex(16)
     INDEPENDENT_REGISTER = str(os.getenv('INDEPENDENT_REGISTER') or 'True').lower() == 'true'
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY') if os.getenv('JWT_SECRET_KEY') and os.getenv('JWT_SECRET_KEY').lower() != 'auto' else secrets.token_hex(16)
+    JWT_ALGORITHM = os.getenv('JWT_ALGORITHM') or 'HS256'
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES') or 30)
     NEO4J_URI = os.getenv('NEO4J_URI') or 'bolt://localhost:7687'
     NEO4J_USER = os.getenv('NEO4J_USER') or 'neo4j'
     NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD') or 'neo4j'
