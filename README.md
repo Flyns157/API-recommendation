@@ -24,7 +24,7 @@ This project provide an recommendation API to a social network named "Watif" (a 
 3. Installez les dépendances :
 
    ```shell
-   pip install -r requirements.txt
+   pip install -r requirements.in
    ```
 
 ## Usage
@@ -36,8 +36,10 @@ This project provide an recommendation API to a social network named "Watif" (a 
 - To run the actual version:
 
   ```shell
-  python -m Recommender [--debug] [--maintenance] [--sync] [--host <host_ip>] [--port <num_port>]
+  python -m Recommender --port 8082 [--debug] [--maintenance] [--sync] [--host <host_ip>]
   ```
+  
+_The spring API call this API with the port 8082, use it if you want to make sure everything works!_
 - To run the actual version (with docker):
 
   ```shell
