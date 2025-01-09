@@ -5,7 +5,6 @@ from . import recommender_engine
 import random
 import numpy as np
 
-
 class JA_engine(recommender_engine):
     def get_hastags(self, id_user: str) -> set:
         """
@@ -19,7 +18,7 @@ class JA_engine(recommender_engine):
         """
         with self.db.neo4j_driver.session() as session:
             hashtags = session.run(
-                "MATCH (u:users),(p:posts),(k:keys) WHERE u.idUser = $id_user RETURN k.idKey AS ids",
+                "MATCH (u:users)<-[:WRITED_BY]-(p:posts)-[:HAS_KEY]->(k:keys) WHERE u.idUser = $id_user RETURN k.idKey AS ids",
                 id_user=str(id_user)
             )
             hashtag_set = set()
@@ -101,10 +100,11 @@ class JA_engine(recommender_engine):
         Returns:
             list: A sorted list of recommended post IDs.
         """
+
         with self.db.neo4j_driver.session() as session:
             posts = session.run(
-                "MATCH (u:users),(p:posts) WHERE u.idUser <> $id_user RETURN p.idPost"+
-                " SKIP $i LIMIT $limit",
+                "MATCH (p:posts)-[:HAS_KEY]->(k:keys), (u:users)<-[:WRITED_BY]-(p) WHERE u.idUser <> $id_user"+
+                " WITH DISTINCT p.idPost AS idPost RETURN idPost SKIP $i LIMIT $limit",
                 id_user=str(id_user), i=start_index,limit=page_size
             ).value()
 
@@ -116,25 +116,34 @@ class JA_engine(recommender_engine):
                 user_interests = session.run(
                     "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.idUser = $id_user RETURN i.idInterest AS interests",
                     id_user=id_user
-                ).single()["interests"]
+                ).single()
+
+                if user_interests is None : user_interests = []
+                else : user_interests = user_interests["interests"]
 
                 for post in posts:
                     id_author = session.run(
-                        "MATCH (u:users),(p:posts) WHERE u.idUser = $id_user RETURN u.idUser AS id",
-                        id_user=post
+                        "MATCH (u:users)<-[:WRITED_BY]-(p:posts) WHERE p.idPost =$id_post RETURN u.idUser AS id",
+                        id_post=post
                     ).single()["id"]
 
                     u = session.run(
                         "MATCH (u:users)-[ib:INTERESTED_BY]->(i:interests) WHERE u.idUser = $id_author RETURN i.idInterest AS interests",
                         id_author=id_author
-                    ).single()["interests"]
+                    ).single()
 
-                    interests_score = len(set(user_interests) & set(u)) / len(set(user_interests) | set(u))
-                    scores[post] = interests_score
+                    if u is None : u = []
+                    else : u = u["interests"]
+
+                    if user_interests == [] or u == [] :
+                        scores[post] = 0
+                    else :
+                        interests_score = len(set(user_interests) & set(u)) / len(set(user_interests) | set(u))
+                        scores[post] = interests_score
             else:
                 for post in posts:
                     hashtags = session.run(
-                        "MATCH (p:posts),(k:keys) WHERE p.idPost = $idPost RETURN k.idKey AS ids",
+                        "MATCH (p:posts)-[:HAS_KEY]->(k:keys) WHERE p.idPost = $idPost RETURN k.idKey AS ids",
                         idPost=post
                     )
                     post_hashtags = set()
