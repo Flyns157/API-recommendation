@@ -2,7 +2,7 @@ import logging
 from threading import Lock, current_thread, local
 from time import perf_counter
 import numpy as np
-from Recommender.utils import array_avg
+from ...utils import array_avg
 from . import watif_integrated_embedder
 from ...database import Database  
 from datetime import datetime, timedelta
