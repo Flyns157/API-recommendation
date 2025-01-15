@@ -59,6 +59,10 @@ class RecommenderFastAPI(FastAPI):
             # self.include_router(mc_router)
             # self.include_router(em_router)
 
+            # Add health check route
+            @self.get("/health")
+            async def health_check():
+                return {"status": "ok"}
 
         setup_logging()
         setup_middleware()
