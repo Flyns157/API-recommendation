@@ -9,4 +9,6 @@ RUN pip install -r requirements.txt
 
 COPY ./Recommender /app/app
 
+EXPOSE 8080
+
 CMD ["fastapi", "run", "--workers", "4", "app"]
